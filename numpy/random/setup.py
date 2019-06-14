@@ -112,10 +112,11 @@ def configuration(parent_package='', top_path=None):
                              libraries=EXTRA_LIBRARIES,
                              extra_compile_args=EXTRA_COMPILE_ARGS,
                              extra_link_args=EXTRA_LINK_ARGS,
-                             depends=['%s.pyx' % gen],
+                             depends=['%s.pyx' % gen, 'bit_generator.pyx',
+                                      'bit_generator.pxd'],
                              define_macros=_defs,
                              )
-    for gen in ['common']:
+    for gen in ['common', 'bit_generator']:
         # gen.pyx
         config.add_extension(gen,
                              sources=['{0}.c'.format(gen)],
@@ -123,7 +124,7 @@ def configuration(parent_package='', top_path=None):
                              extra_compile_args=EXTRA_COMPILE_ARGS,
                              extra_link_args=EXTRA_LINK_ARGS,
                              include_dirs=['.', 'src'],
-                             depends=['%s.pyx' % gen],
+                             depends=['%s.pyx' % gen, '%s.pxd' % gen,],
                              define_macros=defs,
                              )
     for gen in ['generator', 'bounded_integers']:
