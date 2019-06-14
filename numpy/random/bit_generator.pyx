@@ -25,10 +25,15 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+import sys
 from itertools import cycle
 import re
-import secrets
-import sys
+try:
+    from secrets import randbits
+except ImportError:
+    # secrets unavailable on python 3.5 and before
+    from random import SystemRandom
+    randbits = SystemRandom().getrandbits
 
 try:
     from threading import Lock
@@ -49,15 +54,15 @@ np.import_array()
 
 DECIMAL_RE = re.compile(r'[0-9]+')
 
-DEFAULT_POOL_SIZE = 4
-INIT_A = np.uint32(0x43b0d7e5)
-MULT_A = np.uint32(0x931e8875)
-INIT_B = np.uint32(0x8b51f9dd)
-MULT_B = np.uint32(0x58f38ded)
-MIX_MULT_L = np.uint32(0xca01f9dd)
-MIX_MULT_R = np.uint32(0x4973f715)
-XSHIFT = np.dtype(np.uint32).itemsize * 8 // 2
-MASK32 = 0xFFFFFFFF
+cdef uint32_t DEFAULT_POOL_SIZE = 4
+cdef uint32_t INIT_A = 0x43b0d7e5
+cdef uint32_t MULT_A = 0x931e8875
+cdef uint32_t INIT_B = 0x8b51f9dd
+cdef uint32_t MULT_B = 0x58f38ded
+cdef uint32_t MIX_MULT_L = 0xca01f9dd
+cdef uint32_t MIX_MULT_R = 0x4973f715
+cdef uint32_t XSHIFT = np.dtype(np.uint32).itemsize * 8 // 2
+cdef uint32_t MASK32 = 0xFFFFFFFF
 
 def _int_to_uint32_array(n):
     arr = []
@@ -67,7 +72,7 @@ def _int_to_uint32_array(n):
         arr.append(np.uint32(n))
     while n > 0:
         arr.append(np.uint32(n & MASK32))
-        n >>= 32
+        n //= (2**32)
     return np.array(arr, dtype=np.uint32)
 
 def coerce_to_uint32_array(x):
@@ -135,6 +140,21 @@ def coerce_to_uint32_array(x):
         subseqs = [coerce_to_uint32_array(v) for v in x]
         return np.concatenate(subseqs)
 
+
+cdef uint32_t hashmix(uint32_t value, uint32_t * hash_const):
+    # We are modifying the multiplier as we go along, so it is input-output
+    value ^= hash_const[0]
+    hash_const[0] *= MULT_A
+    value *=  hash_const[0]
+    value ^= value >> XSHIFT
+    return value
+
+cdef uint32_t mix(uint32_t x, uint32_t y):
+    cdef uint32_t result = (MIX_MULT_L * x - MIX_MULT_R * y)
+    result ^= result >> XSHIFT
+    return result
+
+
 cdef class SeedSequence():
     """
     SeedSequence(entropy=None, program_entropy=None, spawn_key=(), pool_size={})
@@ -149,7 +169,6 @@ cdef class SeedSequence():
     cdef int pool_size
     cdef object pool
     cdef int n_children_spawned
-    cdef object mix_entropy
 
     def __init__(self, entropy=None, program_entropy=None, spawn_key=(),
                  pool_size=DEFAULT_POOL_SIZE):
@@ -157,7 +176,7 @@ cdef class SeedSequence():
             raise ValueError("The size of the entropy pool should be at least "
                              f"{DEFAULT_POOL_SIZE}")
         if entropy is None:
-            entropy = secrets.randbits(pool_size * 32)
+            entropy = randbits(pool_size * 32)
         self.entropy = entropy
         self.program_entropy = program_entropy
         self.spawn_key = tuple(spawn_key)
@@ -165,7 +184,7 @@ cdef class SeedSequence():
 
         self.pool = np.zeros(pool_size, dtype=np.uint32)
         self.n_children_spawned = 0
-        self.mix_entropy(self.get_assembled_entropy())
+        self.mix_entropy(self.pool, self.get_assembled_entropy())
 
     def __repr__(self):
         lines = [
@@ -184,54 +203,38 @@ cdef class SeedSequence():
         text = '\n'.join(lines)
         return text
 
-    @np.errstate(over='ignore')
-    def mix_entropy(self, entropy_array):
+    cdef mix_entropy(self, np.ndarray[uint32_t, ndim=1] mixer,
+                     np.ndarray[uint32_t, ndim=1] entropy_array):
         """ Mix in the given entropy.
         Parameters
         ----------
         entropy_array : 1D uint32 array
         """
-        hash_const = INIT_A
+        cdef uint32_t hash_const[1]
+        hash_const[0] = INIT_A
 
-        def hash(value):
-            # We are modifying the multiplier as we go along.
-            nonlocal hash_const
-
-            value ^= hash_const
-            hash_const *= MULT_A
-            value *= hash_const
-            value ^= value >> XSHIFT
-            return value
-
-        def mix(x, y):
-            result = MIX_MULT_L * x - MIX_MULT_R * y
-            result ^= result >> XSHIFT
-            return result
-
-        mixer = self.pool
         # Add in the entropy up to the pool size.
         for i in range(len(mixer)):
             if i < len(entropy_array):
-                mixer[i] = hash(entropy_array[i])
+                mixer[i] = hashmix(entropy_array[i], hash_const)
             else:
                 # Our pool size is bigger than our entropy, so just keep
                 # running the hash out.
-                mixer[i] = hash(np.uint32(0))
+                mixer[i] = hashmix(0, hash_const)
 
         # Mix all bits together so late bits can affect earlier bits.
         for i_src in range(len(mixer)):
             for i_dst in range(len(mixer)):
                 if i_src != i_dst:
-                    mixer[i_dst] = mix(mixer[i_dst], hash(mixer[i_src]))
+                    mixer[i_dst] = mix(mixer[i_dst],
+                                       hashmix(mixer[i_src], hash_const))
 
         # Add any remaining entropy, mixing each new entropy word with each
         # pool word.
         for i_src in range(len(mixer), len(entropy_array)):
             for i_dst in range(len(mixer)):
-                mixer[i_dst] = mix(mixer[i_dst], hash(entropy_array[i_src]))
-
-        # Should have modified in-place.
-        assert mixer is self.pool
+                mixer[i_dst] = mix(mixer[i_dst],
+                                   hashmix(entropy_array[i_src], hash_const))
 
     def get_assembled_entropy(self):
         """ Convert and assemble all entropy sources into a uniform uint32
@@ -294,7 +297,7 @@ cdef class SeedSequence():
             hash_const *= MULT_B
             data_val *= hash_const
             data_val ^= data_val >> XSHIFT
-            state[i_dst] = data_val
+            state[i_dst] = data_val & MASK32
         if out_dtype == np.dtype(np.uint64):
             state = state.view(np.uint64)
         return state
@@ -325,7 +328,7 @@ cdef class BitGenerator():
     BitGenerator(seed=None)
 
     Abstract Base Class for generic BitGenerators, which provide a stream
-    of random bits based on different algorithms. 
+    of random bits based on different algorithms.
 
     Parameters
     ----------
@@ -452,4 +455,4 @@ cdef class BitGenerator():
         if self._cffi is not None:
             return self._cffi
         self._cffi = prepare_cffi(&self._bitgen)
-        return self._cffi    
+        return self._cffi
