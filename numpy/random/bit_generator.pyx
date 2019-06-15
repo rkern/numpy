@@ -28,6 +28,7 @@ SOFTWARE.
 import sys
 from itertools import cycle
 import re
+
 try:
     from secrets import randbits
 except ImportError:
@@ -45,7 +46,8 @@ from cpython.pycapsule cimport PyCapsule_New
 import numpy as np
 cimport numpy as np
 
-from .common cimport *
+from libc.stdint cimport uint32_t
+from .common cimport (random_raw, benchmark, prepare_ctypes, prepare_cffi)
 from .distributions cimport bitgen_t
 
 __all__ = ['SeedSequence', 'BitGenerator']
@@ -75,7 +77,7 @@ def _int_to_uint32_array(n):
         n //= (2**32)
     return np.array(arr, dtype=np.uint32)
 
-def coerce_to_uint32_array(x):
+def _coerce_to_uint32_array(x):
     """ Coerce an input to a uint32 array.
     If a `uint32` array, pass it through directly.
     If a non-negative integer, then break it up into `uint32` words, lowest
@@ -99,23 +101,23 @@ def coerce_to_uint32_array(x):
     Examples
     --------
     >>> import numpy as np
-    >>> from seed_seq import coerce_to_uint32_array
-    >>> coerce_to_uint32_array(12345)
+    >>> from seed_seq import _coerce_to_uint32_array
+    >>> _coerce_to_uint32_array(12345)
     array([12345], dtype=uint32)
-    >>> coerce_to_uint32_array('12345')
+    >>> _coerce_to_uint32_array('12345')
     array([12345], dtype=uint32)
-    >>> coerce_to_uint32_array('0x12345')
+    >>> _coerce_to_uint32_array('0x12345')
     array([74565], dtype=uint32)
-    >>> coerce_to_uint32_array([12345, '67890'])
+    >>> _coerce_to_uint32_array([12345, '67890'])
     array([12345, 67890], dtype=uint32)
-    >>> coerce_to_uint32_array(np.array([12345, 67890], dtype=np.uint32))
+    >>> _coerce_to_uint32_array(np.array([12345, 67890], dtype=np.uint32))
     array([12345, 67890], dtype=uint32)
-    >>> coerce_to_uint32_array(np.array([12345, 67890], dtype=np.int64))
+    >>> _coerce_to_uint32_array(np.array([12345, 67890], dtype=np.int64))
     array([12345, 67890], dtype=uint32)
-    >>> coerce_to_uint32_array([12345, 0x10deadbeef, 67890, 0xdeadbeef])
+    >>> _coerce_to_uint32_array([12345, 0x10deadbeef, 67890, 0xdeadbeef])
     array([     12345, 3735928559,         16,      67890, 3735928559],
           dtype=uint32)
-    >>> coerce_to_uint32_array(1234567890123456789012345678901234567890)
+    >>> _coerce_to_uint32_array(1234567890123456789012345678901234567890)
     array([3460238034, 2898026390, 3235640248, 2697535605,          3],
           dtype=uint32)
     """
@@ -137,7 +139,7 @@ def coerce_to_uint32_array(x):
             return np.array([], dtype=np.uint32)
         # Should be a sequence of interpretable-as-ints. Convert each one to
         # a uint32 array and concatenate.
-        subseqs = [coerce_to_uint32_array(v) for v in x]
+        subseqs = [_coerce_to_uint32_array(v) for v in x]
         return np.concatenate(subseqs)
 
 
@@ -157,11 +159,24 @@ cdef uint32_t mix(uint32_t x, uint32_t y):
 
 cdef class SeedSequence():
     """
-    SeedSequence(entropy=None, program_entropy=None, spawn_key=(), pool_size={})
+    SeedSequence(entropy=None, program_entropy=None, spawn_key=(), pool_size=%d)
     creates an appropriate seed sequence for BitGenerators via the
     generate_state() method. Calling spawn(n) will create n SeedSequences that
     can be used to seed independent BitGenerators, i.e. for different threads.
-    """.format(DEFAULT_POOL_SIZE)
+
+    Parameters
+    ----------
+    entropy: {None, int, sequence[int]}, optional
+        The entropy for creating a SeedSequence.
+
+    program_entropy: {None, int, sequence[int]}, optional
+        A second source of entropy, typically per-application
+
+    spawn_key: {(), sequence[int]}, optional
+        A third source of entropy, used internally when calling
+        `SeedSequence.spawn`
+    
+    """ % DEFAULT_POOL_SIZE
 
     cdef readonly object entropy
     cdef readonly object program_entropy
@@ -177,13 +192,16 @@ cdef class SeedSequence():
                              f"{DEFAULT_POOL_SIZE}")
         if entropy is None:
             entropy = randbits(pool_size * 32)
+        elif not isinstance(entropy, (int, np.integer, list, tuple, np.ndarray)):
+            raise TypeError('SeedSequence expects int or sequence of ints for '
+                            'entropy not {}'.format(entropy))
         self.entropy = entropy
         self.program_entropy = program_entropy
         self.spawn_key = tuple(spawn_key)
         self.pool_size = pool_size
+        self.n_children_spawned = 0
 
         self.pool = np.zeros(pool_size, dtype=np.uint32)
-        self.n_children_spawned = 0
         self.mix_entropy(self.pool, self.get_assembled_entropy())
 
     def __repr__(self):
@@ -205,9 +223,12 @@ cdef class SeedSequence():
 
     cdef mix_entropy(self, np.ndarray[uint32_t, ndim=1] mixer,
                      np.ndarray[uint32_t, ndim=1] entropy_array):
-        """ Mix in the given entropy.
+        """ Mix in the given entropy to mixer.
         Parameters
         ----------
+        
+        mixer: 1D uint32 array, modified in-place
+        
         entropy_array : 1D uint32 array
         """
         cdef uint32_t hash_const[1]
@@ -248,15 +269,15 @@ cdef class SeedSequence():
 
         # We MUST have at least some run-entropy. The others are optional.
         assert self.entropy is not None
-        run_entropy = coerce_to_uint32_array(self.entropy)
+        run_entropy = _coerce_to_uint32_array(self.entropy)
         if self.program_entropy is None:
-            # We *could* make `coerce_to_uint32_array(None)` handle this case,
+            # We *could* make `_coerce_to_uint32_array(None)` handle this case,
             # but that would make it easier to misuse, a la
-            # `coerce_to_uint32_array([None, 12345])`
+            # `_coerce_to_uint32_array([None, 12345])`
             program_entropy = np.array([], dtype=np.uint32)
         else:
-            program_entropy = coerce_to_uint32_array(self.program_entropy)
-        spawn_entropy = coerce_to_uint32_array(self.spawn_key)
+            program_entropy = _coerce_to_uint32_array(self.program_entropy)
+        spawn_entropy = _coerce_to_uint32_array(self.spawn_key)
         entropy_array = np.concatenate([run_entropy, program_entropy,
                                         spawn_entropy])
         return entropy_array
@@ -307,6 +328,7 @@ cdef class SeedSequence():
     def spawn(self, n_children):
         """ Spawn a number of child `SeedSequence`s by extending the
         `spawn_key`.
+
         Parameters
         ----------
         n_children : int
@@ -327,14 +349,14 @@ cdef class SeedSequence():
 
 cdef class BitGenerator():
     """
-    BitGenerator(seed=None)
+    BitGenerator(seed_seq=None)
 
-    Abstract Base Class for generic BitGenerators, which provide a stream
-    of random bits based on different algorithms.
+    Base Class for generic BitGenerators, which provide a stream
+    of random bits based on different algorithms. Must be overridden.
 
     Parameters
     ----------
-    seed: {None, SeedSequence, int, sequence[int]}, optional
+    seed_seq: {None, SeedSequence, int, sequence[int]}, optional
         A SeedSequence to initialize the BitGenerator. If None, one will be
         created. If an int or a sequence of ints, it will be used as the
         entropy for creating a SeedSequence.
@@ -352,7 +374,7 @@ cdef class BitGenerator():
     `SeedSequence`
     """
 
-    def __init__(self, seed=None):
+    def __init__(self, seed_seq=None):
         self.lock = Lock()
 
         self._ctypes = None
@@ -360,18 +382,9 @@ cdef class BitGenerator():
 
         cdef const char *name = "BitGenerator"
         self.capsule = PyCapsule_New(<void *>&self._bitgen, name, NULL)
-        if seed is None:
-            seed = SeedSequence()
-        elif isinstance(seed, SeedSequence):
-            pass
-        elif isinstance(seed, (int, np.integer)):
-            seed = SeedSequence(seed)
-        elif isinstance(seed, (list, tuple, np.ndarray)):
-            seed = SeedSequence(seed)
-        else:
-            raise TypeError('{}(seed) expects int or SeedSequence for seed '
-                             'not {}'.format(type(self).__name__, seed))
-        self._seed = seed
+        if not isinstance(seed_seq, SeedSequence):
+            seed_seq = SeedSequence(seed_seq)
+        self._seed_seq = seed_seq
 
     # Pickling support:
     def __getstate__(self):
@@ -383,6 +396,25 @@ cdef class BitGenerator():
     def __reduce__(self):
         from ._pickle import __bit_generator_ctor
         return __bit_generator_ctor, (self.state['bit_generator'],), self.state
+    
+    @property
+    def state(self):
+        """
+        Get or set the PRNG state
+
+        The base BitGenerator.state must be overridden by a subclass
+
+        Returns
+        -------
+        state : dict
+            Dictionary containing the information required to describe the
+            state of the PRNG
+        """
+        raise NotImplementedError('Not implemented in base BitGenerator')
+
+    @state.setter
+    def state(self, value):
+        raise NotImplementedError('Not implemented in base BitGenerator')
 
     def random_raw(self, size=None, output=True):
         """
@@ -414,6 +446,10 @@ cdef class BitGenerator():
         See the class docstring for the number of bits returned.
         """
         return random_raw(&self._bitgen, self.lock, size, output)
+
+    def _benchmark(self, Py_ssize_t cnt, method=u'uint64'):
+        ''' Used in tests'''
+        return benchmark(&self._bitgen, self.lock, cnt, method)
 
     @property
     def ctypes(self):

@@ -38,13 +38,13 @@ cdef double pcg64_double(void* st) nogil:
 
 cdef class PCG64(BitGenerator):
     """
-    PCG64(seed)
+    PCG64(seed_seq)
 
     BitGenerator for the PCG-64 pseudo-random number generator.
 
     Parameters
     ----------
-    seed : {None, SeedSequence, int}, optional
+    seed_seq : {None, SeedSequence, int}, optional
         A SeedSequence to initialize the BitGenerator. If None, one will be
         created. If an int, it will be used as the entropy for creating a
         SeedSequence.
@@ -93,7 +93,6 @@ cdef class PCG64(BitGenerator):
 
     def __init__(self, seed=None):
         BitGenerator.__init__(self, seed)
-        assert self._seed is not None
         self.rng_state.pcg_state = &self.pcg64_random_state
 
         self._bitgen.state = <void *>&self.rng_state
@@ -102,7 +101,7 @@ cdef class PCG64(BitGenerator):
         self._bitgen.next_double = &pcg64_double
         self._bitgen.next_raw = &pcg64_uint64
         # Seed the _bitgen
-        val = self._seed.generate_state(4, np.uint64)
+        val = self._seed_seq.generate_state(4, np.uint64)
         pcg64_set_seed(&self.rng_state,
                        <uint64_t *>np.PyArray_DATA(val),
                        <uint64_t *>np.PyArray_DATA(val) + 2)
@@ -112,8 +111,48 @@ cdef class PCG64(BitGenerator):
         self.rng_state.has_uint32 = 0
         self.rng_state.uinteger = 0
 
-    def _benchmark(self, Py_ssize_t cnt, method=u'uint64'):
-        return benchmark(&self._bitgen, self.lock, cnt, method)
+    cdef jump_inplace(self, jumps):
+        """
+        Jump state in-place
+        Not part of public API
+        Parameters
+        ----------
+        jumps : integer, positive
+            Number of times to jump the state of the rng.
+        Notes
+        -----
+        The step size is phi-1 when divided by 2**128 where phi is the
+        golden number.
+        """
+        step = 0x9e3779b97f4a7c15f39cc0605cedc834
+        self.advance(step * int(jumps))
+
+    def jumped(self, jumps=1):
+        """
+        jumped(jumps=1)
+        Returns a new bit generator with the state jumped
+        Jumps the state as-if jumps * 210306068529402873165736369884012333108
+        random numbers have been generated.
+        Parameters
+        ----------
+        jumps : integer, positive
+            Number of times to jump the state of the bit generator returned
+        Returns
+        -------
+        bit_generator : PCG64
+            New instance of generator jumped iter times
+        Notes
+        -----
+        The step size is phi-1 when divided by 2**128 where phi is the
+        golden number.
+        """
+        cdef PCG64 bit_generator
+
+        bit_generator = self.__class__()
+        bit_generator.state = self.state
+        bit_generator.jump_inplace(jumps)
+
+        return bit_generator
 
     @property
     def state(self):
