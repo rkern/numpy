@@ -163,12 +163,12 @@ cdef class SeedSequence():
     can be used to seed independent BitGenerators, i.e. for different threads.
     """.format(DEFAULT_POOL_SIZE)
 
-    cdef object entropy
-    cdef object program_entropy
-    cdef tuple spawn_key
-    cdef int pool_size
-    cdef object pool
-    cdef int n_children_spawned
+    cdef readonly object entropy
+    cdef readonly object program_entropy
+    cdef readonly tuple spawn_key
+    cdef readonly int pool_size
+    cdef readonly object pool
+    cdef readonly int n_children_spawned
 
     def __init__(self, entropy=None, program_entropy=None, spawn_key=(),
                  pool_size=DEFAULT_POOL_SIZE):
