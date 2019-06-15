@@ -163,12 +163,12 @@ cdef class SeedSequence():
     can be used to seed independent BitGenerators, i.e. for different threads.
     """.format(DEFAULT_POOL_SIZE)
 
-    cdef object entropy
-    cdef object program_entropy
-    cdef tuple spawn_key
-    cdef int pool_size
-    cdef object pool
-    cdef int n_children_spawned
+    cdef readonly object entropy
+    cdef readonly object program_entropy
+    cdef readonly tuple spawn_key
+    cdef readonly int pool_size
+    cdef readonly object pool
+    cdef readonly int n_children_spawned
 
     def __init__(self, entropy=None, program_entropy=None, spawn_key=(),
                  pool_size=DEFAULT_POOL_SIZE):
@@ -281,7 +281,9 @@ cdef class SeedSequence():
         -------
         state : uint32 or uint64 array, shape=(n_words,)
         """
-        hash_const = INIT_B
+        cdef uint32_t hash_const = INIT_B
+        cdef uint32_t data_val
+
         out_dtype = np.dtype(dtype)
         if out_dtype == np.dtype(np.uint32):
             pass
@@ -297,7 +299,7 @@ cdef class SeedSequence():
             hash_const *= MULT_B
             data_val *= hash_const
             data_val ^= data_val >> XSHIFT
-            state[i_dst] = data_val & MASK32
+            state[i_dst] = data_val
         if out_dtype == np.dtype(np.uint64):
             state = state.view(np.uint64)
         return state
