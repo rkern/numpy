@@ -133,14 +133,17 @@ cdef class PCG64(BitGenerator):
         Returns a new bit generator with the state jumped
         Jumps the state as-if jumps * 210306068529402873165736369884012333108
         random numbers have been generated.
+
         Parameters
         ----------
         jumps : integer, positive
             Number of times to jump the state of the bit generator returned
+
         Returns
         -------
         bit_generator : PCG64
             New instance of generator jumped iter times
+
         Notes
         -----
         The step size is phi-1 when divided by 2**128 where phi is the
