@@ -345,6 +345,7 @@ cdef class SeedSequence():
                 spawn_key=self.spawn_key + (i,),
                 pool_size=self.pool_size,
             ))
+        self.n_children_spawned += n_children
         return seqs
 
 cdef class BitGenerator():
