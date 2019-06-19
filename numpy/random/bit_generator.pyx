@@ -132,8 +132,8 @@ def _coerce_to_uint32_array(x):
             raise ValueError("unrecognized seed string")
     if isinstance(x, (int, np.integer)):
         return _int_to_uint32_array(x)
-    elif isinstance(x, (float, np.float)):
-        raise ValueError('seed must be integer')
+    elif isinstance(x, (float, np.inexact)):
+        raise TypeError('seed must be integer')
     else:
         if len(x) == 0:
             return np.array([], dtype=np.uint32)
@@ -161,8 +161,9 @@ cdef class SeedSequence():
     """
     SeedSequence(entropy=None, program_entropy=None, spawn_key=(), pool_size=%d)
     creates an appropriate seed sequence for BitGenerators via the
-    generate_state() method. Calling spawn(n) will create n SeedSequences that
-    can be used to seed independent BitGenerators, i.e. for different threads.
+    `generate_state` method. Calling `spawn(n) <spawn>` will create n
+    SeedSequences that can be used to seed independent BitGenerators, i.e. for
+    different threads.
 
     Parameters
     ----------
@@ -175,15 +176,8 @@ cdef class SeedSequence():
     spawn_key: {(), sequence[int]}, optional
         A third source of entropy, used internally when calling
         `SeedSequence.spawn`
-    
-    """ % DEFAULT_POOL_SIZE
 
-    cdef readonly object entropy
-    cdef readonly object program_entropy
-    cdef readonly tuple spawn_key
-    cdef readonly int pool_size
-    cdef readonly object pool
-    cdef readonly int n_children_spawned
+    """ % DEFAULT_POOL_SIZE
 
     def __init__(self, entropy=None, program_entropy=None, spawn_key=(),
                  pool_size=DEFAULT_POOL_SIZE):
@@ -192,7 +186,8 @@ cdef class SeedSequence():
                              f"{DEFAULT_POOL_SIZE}")
         if entropy is None:
             entropy = randbits(pool_size * 32)
-        elif not isinstance(entropy, (int, np.integer, list, tuple, np.ndarray)):
+        elif not isinstance(entropy, (int, np.integer, list, tuple, range,
+                                      np.ndarray)):
             raise TypeError('SeedSequence expects int or sequence of ints for '
                             'entropy not {}'.format(entropy))
         self.entropy = entropy
@@ -221,14 +216,14 @@ cdef class SeedSequence():
         text = '\n'.join(lines)
         return text
 
-    cdef mix_entropy(self, np.ndarray[uint32_t, ndim=1] mixer,
-                     np.ndarray[uint32_t, ndim=1] entropy_array):
+    cdef mix_entropy(self, np.ndarray[np.npy_uint32, ndim=1] mixer,
+                     np.ndarray[np.npy_uint32, ndim=1] entropy_array):
         """ Mix in the given entropy to mixer.
         Parameters
         ----------
-        
+
         mixer: 1D uint32 array, modified in-place
-        
+
         entropy_array : 1D uint32 array
         """
         cdef uint32_t hash_const[1]
@@ -284,7 +279,10 @@ cdef class SeedSequence():
 
     @np.errstate(over='ignore')
     def generate_state(self, n_words, dtype=np.uint32):
-        """ Return the requested number of words for PRNG seeding.
+        """
+        generate_state(n_words, dtype=np.uint32)
+
+        Return the requested number of words for PRNG seeding.
 
         A BitGenerator should call this method in its constructor with
         an appropriate `n_words` parameter to properly seed itself.
@@ -298,6 +296,7 @@ cdef class SeedSequence():
             requesting `uint64` will draw twice as many bits as `uint32` for
             the same `n_words`. This is a convenience for `BitGenerator`s that
             express their states as `uint64` arrays.
+
         Returns
         -------
         state : uint32 or uint64 array, shape=(n_words,)
@@ -326,7 +325,10 @@ cdef class SeedSequence():
         return state
 
     def spawn(self, n_children):
-        """ Spawn a number of child `SeedSequence`s by extending the
+        """
+        spawn(n_children)
+
+        Spawn a number of child `SeedSequence` s by extending the
         `spawn_key`.
 
         Parameters
@@ -334,7 +336,7 @@ cdef class SeedSequence():
         n_children : int
         Returns
         -------
-        seqs : list of `SeedSequence`s
+        seqs : list of `SeedSequence` s
         """
         seqs = []
         for i in range(self.n_children_spawned,
@@ -397,7 +399,7 @@ cdef class BitGenerator():
     def __reduce__(self):
         from ._pickle import __bit_generator_ctor
         return __bit_generator_ctor, (self.state['bit_generator'],), self.state
-    
+
     @property
     def state(self):
         """

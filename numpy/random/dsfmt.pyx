@@ -1,16 +1,10 @@
 import operator
-from cpython.pycapsule cimport PyCapsule_New
-
-try:
-    from threading import Lock
-except ImportError:
-    from dummy_threading import Lock
 
 import numpy as np
 cimport numpy as np
 
 from .common cimport *
-from .distributions cimport bitgen_t
+from .bit_generator cimport BitGenerator
 from .entropy import random_entropy
 
 __all__ = ['DSFMT']
@@ -68,21 +62,18 @@ cdef double dsfmt_double(void* st) nogil:
 cdef uint64_t dsfmt_raw(void *st) nogil:
     return dsfmt_next_raw(<dsfmt_state *>st)
 
-cdef class DSFMT:
-    u"""
-    DSFMT(seed=None)
+cdef class DSFMT(BitGenerator):
+    """
+    DSFMT(seed_seq=None)
 
     Container for the SIMD-based Mersenne Twister pseudo RNG.
 
     Parameters
     ----------
-    seed : {None, int, array_like}, optional
-        Random seed used to initialize the pseudo-random number generator.  Can
-        be any integer between 0 and 2**32 - 1 inclusive, an array (or other
-        sequence) of unsigned 32-bit integers, or ``None`` (the default).  If
-        `seed` is ``None``, a 32-bit unsigned integer is read from
-        ``/dev/urandom`` (or the Windows analog) if available. If unavailable,
-        a 32-bit hash of the time and process ID is used.
+    seed_seq : {None, int, array_like, SeedSequence}, optional
+        A SeedSequence to initialize the BitGenerator. If None, one will be
+        created. If an int or array_like, it will be used as the entropy for
+        creating a SeedSequence.
 
     Attributes
     ----------
@@ -104,6 +95,14 @@ cdef class DSFMT:
 
     **State and Seeding**
 
+    The preferred way to use a BitGenerator in parallel applications is to use
+    the `SeedSequence.spawn` method to obtain entropy values, and to use these
+    to generate new BitGenerators:
+
+    >>> from numpy.random import Generator, DSFMT, SeedSequence
+    >>> sg = SeedSequence(1234)
+    >>> rg = [Generator(DSFMT(s)) for s in sg.spawn(10)]
+
     The ``DSFMT`` state vector consists of a 384 element array of 64-bit
     unsigned integers plus a single integer value between 0 and 382
     indicating the current position within the main array. The implementation
@@ -111,10 +110,10 @@ cdef class DSFMT:
     to efficiently access the random numbers produced by the dSFMT generator.
 
     ``DSFMT`` is seeded using either a single 32-bit unsigned integer or a
-    vector of 32-bit unsigned integers. In either case, the input seed is used
-    as an input (or inputs) for a hashing function, and the output of the
+    vector of 32-bit unsigned integers. In either case, the input seed_seq is
+    used as an input (or inputs) for a hashing function, and the output of the
     hashing function is used as the initial state. Using a single 32-bit value
-    for the seed can only initialize a small range of the possible initial
+    for the seedseq can only initialize a small range of the possible initial
     state values.
 
     **Parallel Features**
@@ -128,8 +127,8 @@ cdef class DSFMT:
 
     >>> from numpy.random.entropy import random_entropy
     >>> from numpy.random import Generator, DSFMT
-    >>> seed = random_entropy()
-    >>> bit_generator = DSFMT(seed)
+    >>> seed_seq = SeedSequence()
+    >>> bit_generator = DSFMT(seed_seq)
     >>> rg = []
     >>> for _ in range(10):
     ...    rg.append(Generator(bit_generator))
@@ -151,40 +150,24 @@ cdef class DSFMT:
            Sequences and Their Applications - SETA, 290--298, 2008.
     """
     cdef dsfmt_state rng_state
-    cdef bitgen_t _bitgen
-    cdef public object capsule
-    cdef object _cffi
-    cdef object _ctypes
-    cdef public object lock
 
-    def __init__(self, seed=None):
+    def __init__(self, seed_seq=None):
+        BitGenerator.__init__(self, seed_seq)
         self.rng_state.state = <dsfmt_t *>PyArray_malloc_aligned(sizeof(dsfmt_t))
         self.rng_state.buffered_uniforms = <double *>PyArray_calloc_aligned(DSFMT_N64, sizeof(double))
         self.rng_state.buffer_loc = DSFMT_N64
-        self.seed(seed)
-        self.lock = Lock()
 
         self._bitgen.state = <void *>&self.rng_state
         self._bitgen.next_uint64 = &dsfmt_uint64
         self._bitgen.next_uint32 = &dsfmt_uint32
         self._bitgen.next_double = &dsfmt_double
         self._bitgen.next_raw = &dsfmt_raw
-        cdef const char *name = "BitGenerator"
-        self.capsule = PyCapsule_New(<void *>&self._bitgen, name, NULL)
+        val = self._seed_seq.generate_state(DSFMT_N * 4, np.uint32)
+        dsfmt_init_by_array(self.rng_state.state,
+                                <uint32_t *>np.PyArray_DATA(val),
+                                np.PyArray_DIM(val, 0))
 
-        self._cffi = None
-        self._ctypes = None
-
-    # Pickling support:
-    def __getstate__(self):
-        return self.state
-
-    def __setstate__(self, state):
-        self.state = state
-
-    def __reduce__(self):
-        from ._pickle import __bit_generator_ctor
-        return __bit_generator_ctor, (self.state['bit_generator'],), self.state
+        self._reset_state_variables()
 
     def __dealloc__(self):
         if self.rng_state.state:
@@ -194,88 +177,6 @@ cdef class DSFMT:
 
     cdef _reset_state_variables(self):
         self.rng_state.buffer_loc = DSFMT_N64
-
-    def random_raw(self, size=None, output=True):
-        """
-        random_raw(self, size=None)
-
-        Return randoms as generated by the underlying BitGenerator
-
-        Parameters
-        ----------
-        size : int or tuple of ints, optional
-            Output shape.  If the given shape is, e.g., ``(m, n, k)``, then
-            ``m * n * k`` samples are drawn.  Default is None, in which case a
-            single value is returned.
-        output : bool, optional
-            Output values.  Used for performance testing since the generated
-            values are not returned.
-
-        Returns
-        -------
-        out : uint or ndarray
-            Drawn samples.
-
-        Notes
-        -----
-        This method directly exposes the the raw underlying pseudo-random
-        number generator. All values are returned as unsigned 64-bit
-        values irrespective of the number of bits produced by the PRNG.
-
-        See the class docstring for the number of bits returned.
-        """
-        return random_raw(&self._bitgen, self.lock, size, output)
-
-    def _benchmark(self, Py_ssize_t cnt, method=u'uint64'):
-        return benchmark(&self._bitgen, self.lock, cnt, method)
-
-    def seed(self, seed=None):
-        """
-        seed(seed=None)
-
-        Seed the generator.
-
-        Parameters
-        ----------
-        seed : {None, int, array_like}, optional
-            Random seed initializing the pseudo-random number generator.
-            Can be an integer in [0, 2**32-1], array of integers in
-            [0, 2**32-1] or ``None`` (the default). If `seed` is ``None``,
-            then ``DSFMT`` will try to read entropy from ``/dev/urandom``
-            (or the Windows analog) if available to produce a 32-bit
-            seed. If unavailable, a 32-bit hash of the time and process
-            ID is used.
-
-        Raises
-        ------
-        ValueError
-            If seed values are out of range for the PRNG.
-        """
-        cdef np.ndarray obj
-        try:
-            if seed is None:
-                try:
-                    seed = random_entropy(1)
-                except RuntimeError:
-                    seed = random_entropy(1, 'fallback')
-                dsfmt_init_gen_rand(self.rng_state.state, seed)
-            else:
-                if hasattr(seed, 'squeeze'):
-                    seed = seed.squeeze()
-                idx = operator.index(seed)
-                if idx > int(2**32 - 1) or idx < 0:
-                    raise ValueError("Seed must be between 0 and 2**32 - 1")
-                dsfmt_init_gen_rand(self.rng_state.state, seed)
-        except TypeError:
-            obj = np.asarray(seed).astype(np.int64, casting='safe').ravel()
-            if ((obj > int(2**32 - 1)) | (obj < 0)).any():
-                raise ValueError("Seed must be between 0 and 2**32 - 1")
-            obj = obj.astype(np.uint32, casting='unsafe', order='C')
-            dsfmt_init_by_array(self.rng_state.state,
-                                <uint32_t *>obj.data,
-                                np.PyArray_DIM(obj, 0))
-        # Clear the buffer
-        self._reset_state_variables()
 
     cdef jump_inplace(self, iter):
         """
@@ -370,47 +271,3 @@ cdef class DSFMT:
         for i in range(DSFMT_N64):
             self.rng_state.buffered_uniforms[i] = buffered_uniforms[i]
         self.rng_state.buffer_loc = value['buffer_loc']
-
-    @property
-    def ctypes(self):
-        """
-        ctypes interface
-
-        Returns
-        -------
-        interface : namedtuple
-            Named tuple containing ctypes wrapper
-
-            * state_address - Memory address of the state struct
-            * state - pointer to the state struct
-            * next_uint64 - function pointer to produce 64 bit integers
-            * next_uint32 - function pointer to produce 32 bit integers
-            * next_double - function pointer to produce doubles
-            * bitgen - pointer to the bit generator struct
-        """
-        if self._ctypes is None:
-            self._ctypes = prepare_ctypes(&self._bitgen)
-
-        return self._ctypes
-
-    @property
-    def cffi(self):
-        """
-        CFFI interface
-
-        Returns
-        -------
-        interface : namedtuple
-            Named tuple containing CFFI wrapper
-
-            * state_address - Memory address of the state struct
-            * state - pointer to the state struct
-            * next_uint64 - function pointer to produce 64 bit integers
-            * next_uint32 - function pointer to produce 32 bit integers
-            * next_double - function pointer to produce doubles
-            * bitgen - pointer to the bit generator struct
-        """
-        if self._cffi is not None:
-            return self._cffi
-        self._cffi = prepare_cffi(&self._bitgen)
-        return self._cffi

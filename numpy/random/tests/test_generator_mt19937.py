@@ -8,7 +8,7 @@ from numpy.testing import (
     assert_warns, assert_no_warnings, assert_array_equal,
     assert_array_almost_equal, suppress_warnings)
 
-from numpy.random import Generator, MT19937
+from numpy.random import Generator, MT19937, SeedSequence
 
 random = Generator(MT19937())
 
@@ -34,6 +34,10 @@ class TestSeed(object):
         assert_equal(s.integers(1000), 973)
         s = Generator(MT19937([4294967295]))
         assert_equal(s.integers(1000), 265)
+
+    def test_seedsequence(self):
+        s = MT19937(SeedSequence(0))
+        assert_equal(s.random_raw(1), 2300381676)
 
     def test_invalid_scalar(self):
         # seed must be an unsigned 32 bit integer

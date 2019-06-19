@@ -14,7 +14,6 @@ Seeding and State
 .. autosummary::
    :toctree: generated/
 
-   ~PCG32.seed
    ~PCG32.state
 
 Parallel generation

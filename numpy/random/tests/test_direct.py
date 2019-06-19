@@ -128,8 +128,8 @@ class Base(object):
         cls.bits = 64
         cls.dtype = np.uint64
         cls.seed_error_type = TypeError
-        cls.invalid_seed_types = []
-        cls.invalid_seed_values = []
+        cls.invalid_init_types = []
+        cls.invalid_init_values = []
 
     @classmethod
     def _read_csv(cls, filename):
@@ -209,7 +209,7 @@ class Base(object):
                       np.array([np.pi]))
         assert_raises(self.seed_error_type, self.bit_generator,
                       np.array([-np.pi]))
-        assert_raises(ValueError, self.bit_generator,
+        assert_raises(TypeError, self.bit_generator,
                       np.array([np.pi, -np.pi]))
         assert_raises(TypeError, self.bit_generator, np.array([0, np.pi]))
         assert_raises(TypeError, self.bit_generator, [np.pi])
@@ -219,8 +219,6 @@ class Base(object):
         assert_raises(ValueError, self.bit_generator, -1)
 
     def test_seed_out_of_range_array(self):
-        assert_raises(ValueError, self.bit_generator,
-                      [2 ** (2 * self.bits + 1)])
         assert_raises(ValueError, self.bit_generator, [-1])
 
     def test_repr(self):
@@ -259,15 +257,15 @@ class Base(object):
         with pytest.raises(ValueError):
             bit_generator.state = state
 
-    def test_invalid_seed_type(self):
+    def test_invalid_init_type(self):
         bit_generator = self.bit_generator
-        for st in self.invalid_seed_types:
+        for st in self.invalid_init_types:
             with pytest.raises(TypeError):
                 bit_generator(*st)
 
-    def test_invalid_seed_values(self):
+    def test_invalid_init_values(self):
         bit_generator = self.bit_generator
-        for st in self.invalid_seed_values:
+        for st in self.invalid_init_values:
             with pytest.raises((ValueError, OverflowError)):
                 bit_generator(*st)
 
@@ -312,8 +310,8 @@ class TestXoshiro256(Base):
         cls.data2 = cls._read_csv(
             join(pwd, './data/xoshiro256-testset-2.csv'))
         cls.seed_error_type = TypeError
-        cls.invalid_seed_types = [('apple',), (2 + 3j,), (3.1,)]
-        cls.invalid_seed_values = [(-2,), (np.empty((2, 2), dtype=np.int64),)]
+        cls.invalid_init_types = [('apple',), (2 + 3j,), (3.1,)]
+        cls.invalid_init_values = [(-2,), (np.empty((2, 2), dtype=np.int64),)]
 
 
 class TestXoshiro512(Base):
@@ -327,8 +325,8 @@ class TestXoshiro512(Base):
         cls.data2 = cls._read_csv(
             join(pwd, './data/xoshiro512-testset-2.csv'))
         cls.seed_error_type = TypeError
-        cls.invalid_seed_types = [('apple',), (2 + 3j,), (3.1,)]
-        cls.invalid_seed_values = [(-2,), (np.empty((2, 2), dtype=np.int64),)]
+        cls.invalid_init_types = [('apple',), (2 + 3j,), (3.1,)]
+        cls.invalid_init_values = [(-2,), (np.empty((2, 2), dtype=np.int64),)]
 
 
 class TestThreeFry(Base):
@@ -342,8 +340,8 @@ class TestThreeFry(Base):
         cls.data2 = cls._read_csv(
             join(pwd, './data/threefry-testset-2.csv'))
         cls.seed_error_type = TypeError
-        cls.invalid_seed_types = []
-        cls.invalid_seed_values = [(1, None, 1), (-1,), (2 ** 257 + 1,),
+        cls.invalid_init_types = []
+        cls.invalid_init_values = [(1, None, 1), (-1,), (2 ** 257 + 1,),
                                    (None, None, 2 ** 257 + 1)]
 
     def test_set_key(self):
@@ -365,8 +363,8 @@ class TestPhilox(Base):
         cls.data2 = cls._read_csv(
             join(pwd, './data/philox-testset-2.csv'))
         cls.seed_error_type = TypeError
-        cls.invalid_seed_types = []
-        cls.invalid_seed_values = [(1, None, 1), (-1,), (2 ** 257 + 1,),
+        cls.invalid_init_types = []
+        cls.invalid_init_values = [(1, None, 1), (-1,), (2 ** 257 + 1,),
                                    (None, None, 2 ** 257 + 1)]
 
     def test_set_key(self):
@@ -386,8 +384,8 @@ class TestPCG64(Base):
         cls.data1 = cls._read_csv(join(pwd, './data/pcg64-testset-1.csv'))
         cls.data2 = cls._read_csv(join(pwd, './data/pcg64-testset-2.csv'))
         cls.seed_error_type = (ValueError, TypeError)
-        cls.invalid_seed_types = [(3.2,), ([None],)]
-        cls.invalid_seed_values = [(-1,), ([3.2],),]
+        cls.invalid_init_types = [(3.2,), ([None],), (1, None)]
+        cls.invalid_init_values = [(-1,), (1, 1000)]
 
     def test_seed_float_array(self):
         assert_raises(self.seed_error_type, self.bit_generator,
@@ -429,21 +427,13 @@ class TestPCG32(TestPCG64):
         cls.data1 = cls._read_csv(join(pwd, './data/pcg32-testset-1.csv'))
         cls.data2 = cls._read_csv(join(pwd, './data/pcg32-testset-2.csv'))
         cls.seed_error_type = TypeError
-        cls.invalid_seed_types = [(np.array([1, 2]),), (3.2,),
+        cls.invalid_init_types = [(np.array([1, 2]), None), (3.2,),
                                   (None, np.zeros(1))]
-        cls.invalid_seed_values = [(-1,), (2 ** 129 + 1,), (None, -1),
-                                   (None, 2 ** 129 + 1)]
-
-    def test_seed_out_of_range(self):
-        assert_raises(ValueError, self.bit_generator,
-                      2 ** (2 * self.bits + 1))
-        assert_raises(ValueError, self.bit_generator, -1)
-
+        cls.invalid_init_values = [(-1,), (None, -1), (None, 2 ** 129 + 1)]
 
     def test_seed_out_of_range_array(self):
-        assert_raises(self.seed_error_type, self.bit_generator,
-                      [2 ** (2 * self.bits + 1)])
-        assert_raises(self.seed_error_type, self.bit_generator, [-1])
+        bg = self.bit_generator([2 ** (2 * self.bits + 1)])
+        assert_raises(ValueError, self.bit_generator, [-1])
 
 class TestMT19937(Base):
     @classmethod
@@ -454,8 +444,8 @@ class TestMT19937(Base):
         cls.data1 = cls._read_csv(join(pwd, './data/mt19937-testset-1.csv'))
         cls.data2 = cls._read_csv(join(pwd, './data/mt19937-testset-2.csv'))
         cls.seed_error_type = ValueError
-        cls.invalid_seed_types = []
-        cls.invalid_seed_values = [(-1,), np.array([2 ** 33])]
+        cls.invalid_init_types = []
+        cls.invalid_init_values = [(-1,), np.array([2 ** 33])]
 
     def test_seed_out_of_range(self):
         assert_raises(ValueError, self.bit_generator, 2 ** (self.bits + 1))
@@ -507,9 +497,8 @@ class TestDSFMT(Base):
         cls.data1 = cls._read_csv(join(pwd, './data/dSFMT-testset-1.csv'))
         cls.data2 = cls._read_csv(join(pwd, './data/dSFMT-testset-2.csv'))
         cls.seed_error_type = TypeError
-        cls.invalid_seed_types = []
-        cls.invalid_seed_values = [(-1,), np.array([2 ** 33]),
-                                   (np.array([2 ** 33, 2 ** 33]),)]
+        cls.invalid_init_types = [(3.14,), np.arange(10, dtype=float)]
+        cls.invalid_init_values = [(-1,)]
 
     def test_uniform_double(self):
         rs = Generator(self.bit_generator(*self.data1['seed']))
@@ -531,26 +520,6 @@ class TestDSFMT(Base):
         gauss = rs.standard_normal(25)
         assert_allclose(gauss,
                         gauss_from_uint(self.data2['data'], n, 'dsfmt'))
-
-    def test_seed_out_of_range_array(self):
-        assert_raises(ValueError, self.bit_generator,
-                      [2 ** (self.bits + 1)])
-        assert_raises(ValueError, self.bit_generator, [-1])
-        assert_raises(TypeError, self.bit_generator,
-                      [2 ** (2 * self.bits + 1)])
-
-    def test_seed_float(self):
-        assert_raises(TypeError, self.bit_generator, np.pi)
-        assert_raises(TypeError, self.bit_generator, -np.pi)
-
-    def test_seed_float_array(self):
-        assert_raises(TypeError, self.bit_generator, np.array([np.pi]))
-        assert_raises(TypeError, self.bit_generator, np.array([-np.pi]))
-        assert_raises(TypeError, self.bit_generator,
-                      np.array([np.pi, -np.pi]))
-        assert_raises(TypeError, self.bit_generator, np.array([0, np.pi]))
-        assert_raises(TypeError, self.bit_generator, [np.pi])
-        assert_raises(TypeError, self.bit_generator, [0, np.pi])
 
     def test_uniform_float(self):
         rs = Generator(self.bit_generator(*self.data1['seed']))

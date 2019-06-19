@@ -15,7 +15,6 @@ Seeding and State
 .. autosummary::
    :toctree: generated/
 
-   ~DSFMT.seed
    ~DSFMT.state
 
 Parallel generation
