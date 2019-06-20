@@ -11,15 +11,7 @@ cdef class BitGenerator():
     cdef readonly object capsule
 
 
-cdef class ISeedSequence():
-    pass
-
-
-cdef class SeedlessSeedSequence(ISeedSequence):
-    pass
-
-
-cdef class SeedSequence(ISeedSequence):
+cdef class SeedSequence():
     cdef readonly object entropy
     cdef readonly object program_entropy
     cdef readonly tuple spawn_key
@@ -29,3 +21,7 @@ cdef class SeedSequence(ISeedSequence):
 
     cdef mix_entropy(self, np.ndarray[np.npy_uint32, ndim=1] mixer,
                      np.ndarray[np.npy_uint32, ndim=1] entropy_array)
+
+
+cdef class SeedlessSequence():
+    pass

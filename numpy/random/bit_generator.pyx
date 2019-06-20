@@ -25,6 +25,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+import abc
 import sys
 from itertools import cycle
 import re
@@ -159,7 +160,8 @@ cdef uint32_t mix(uint32_t x, uint32_t y):
     result ^= result >> XSHIFT
     return result
 
-cdef class ISeedSequence():
+
+class ISeedSequence(abc.ABC):
     """
     ISeedSequence() is the abstract base class for SeedSequences.
 
@@ -169,17 +171,53 @@ cdef class ISeedSequence():
     `SeedlessSeedSequence`
     """
 
-    def __init__(self):
-        raise NotImplementedError('ISeedSequence is a base class and cannot be instantized')
-
-
+    @abc.abstractmethod
     def generate_state(self, n_words, dtype=np.uint32):
-        raise NotImplementedError('seedless SeedSequences cannot generate state')
+        """
+        generate_state(n_words, dtype=np.uint32)
 
+        Return the requested number of words for PRNG seeding.
+
+        A BitGenerator should call this method in its constructor with
+        an appropriate `n_words` parameter to properly seed itself.
+
+        Parameters
+        ----------
+        n_words : int
+        dtype : np.uint32 or np.uint64, optional
+            The size of each word. This should only be either `uint32` or
+            `uint64`. Strings (`'uint32'`, `'uint64'`) are fine. Note that
+            requesting `uint64` will draw twice as many bits as `uint32` for
+            the same `n_words`. This is a convenience for `BitGenerator`s that
+            express their states as `uint64` arrays.
+
+        Returns
+        -------
+        state : uint32 or uint64 array, shape=(n_words,)
+        """
+
+
+class ISpawnableSeedSequence(ISeedSequence):
+
+    @abc.abstractmethod
     def spawn(self, n_children):
-        return [self] * n_children
+        """
+        spawn(n_children)
 
-cdef class SeedlessSeedSequence(ISeedSequence):
+        Spawn a number of child `SeedSequence` s by extending the
+        `spawn_key`.
+
+        Parameters
+        ----------
+        n_children : int
+
+        Returns
+        -------
+        seqs : list of `SeedSequence` s
+        """
+
+
+cdef class SeedlessSeedSequence():
     """
     SeedlessSeedSequence() is used for BitGenerators with no need for seed state.
 
@@ -189,10 +227,19 @@ cdef class SeedlessSeedSequence(ISeedSequence):
     `ISeedSequence`
     """
 
-    def __init__(self):
-        pass
+    def generate_state(self, n_words, dtype=np.uint32):
+        raise NotImplementedError('seedless SeedSequences cannot generate state')
 
-cdef class SeedSequence(ISeedSequence):
+    def spawn(self, n_children):
+        return [self] * n_children
+
+
+# We cannot directly subclass a `cdef class` type from an `ABC` in Cython, so
+# we must register it after the fact.
+ISpawnableSeedSequence.register(SeedlessSeedSequence)
+
+
+cdef class SeedSequence():
     """
     SeedSequence(entropy=None, program_entropy=None, spawn_key=(), pool_size=4)
 
@@ -398,6 +445,9 @@ cdef class SeedSequence(ISeedSequence):
             ))
         self.n_children_spawned += n_children
         return seqs
+
+
+ISpawnableSeedSequence.register(SeedSequence)
 
 
 cdef class BitGenerator():
