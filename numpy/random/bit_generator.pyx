@@ -252,23 +252,27 @@ cdef class SeedSequence():
     create ``n`` SeedSequences that can be used to seed independent
     BitGenerators, i.e. for different threads.
 
-    To recreate a SeedSequence ``sq`` exactly, you can use ``str(sq)``
-
     Parameters
     ----------
-    entropy: {{None, int, sequence[int]}}, optional
-        The entropy for creating a SeedSequence.
-    program_entropy: {{None, int, sequence[int]}}, optional
+    entropy : {None, int, sequence[int]}, optional
+        The entropy for creating a `SeedSequence`.
+    program_entropy : {None, int, sequence[int]}, optional
         A second source of entropy, typically per-application
-    spawn_key: {{(), sequence[int]}}, optional
+    spawn_key : {(), sequence[int]}, optional
         A third source of entropy, used internally when calling
         `SeedSequence.spawn`
-    pool_size: {{int}}, optional
-        Size of the pooled entropy to store. Default is 4
+    pool_size : {int}, optional
+        Size of the pooled entropy to store. Default is 4 to give a 128-bit
+        entropy pool. 8 (for 256 bits) is another reasonable choice if working
+        with larger PRNGs, but there is very little to be gained by selecting
+        another value.
+    n_children_spawned : {int}, optional
+        The number of children already spawned. Only pass this if
+        reconstructing a `SeedSequence` from a serialized form.
     """
 
     def __init__(self, entropy=None, program_entropy=None, spawn_key=(),
-                 pool_size=DEFAULT_POOL_SIZE):
+                 pool_size=DEFAULT_POOL_SIZE, n_children_spawned=0):
         if pool_size < DEFAULT_POOL_SIZE:
             raise ValueError("The size of the entropy pool should be at least "
                              f"{DEFAULT_POOL_SIZE}")
@@ -282,7 +286,7 @@ cdef class SeedSequence():
         self.program_entropy = program_entropy
         self.spawn_key = tuple(spawn_key)
         self.pool_size = pool_size
-        self.n_children_spawned = 0
+        self.n_children_spawned = n_children_spawned
 
         self.pool = np.zeros(pool_size, dtype=np.uint32)
         self.mix_entropy(self.pool, self.get_assembled_entropy())
@@ -300,6 +304,8 @@ cdef class SeedSequence():
             lines.append(f'    spawn_key={self.spawn_key!r},')
         if self.pool_size != DEFAULT_POOL_SIZE:
             lines.append(f'    pool_size={self.pool_size!r},')
+        if self.n_children_spawned != 0:
+            lines.append(f'    n_children_spawned={self.n_children_spawned!r},')
         lines.append(')')
         text = '\n'.join(lines)
         return text
