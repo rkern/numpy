@@ -39,6 +39,11 @@ class TestSeed(object):
         s = MT19937(SeedSequence(0))
         assert_equal(s.random_raw(1), 2300381676)
 
+    def test_seedsequence_eq(self):
+        s1 = SeedSequence(range(10), 1, (1, 2), pool_size=6)
+        s2 = SeedSequence(**s1.state)
+        assert_equal(s1.state, s2.state)
+
     def test_invalid_scalar(self):
         # seed must be an unsigned 32 bit integer
         assert_raises(TypeError, MT19937, -0.5)
@@ -105,7 +110,7 @@ class TestMultinomial(object):
     def test_invalid_n(self):
         assert_raises(ValueError, random.multinomial, -1, [0.8, 0.2])
         assert_raises(ValueError, random.multinomial, [-1] * 10, [0.8, 0.2])
-    
+
     def test_p_non_contiguous(self):
         p = np.arange(15.)
         p /= np.sum(p[1::3])
@@ -670,7 +675,7 @@ class TestRandomDist(object):
         a = np.array([42, 1, 2])
         p = [None, None, None]
         assert_raises(ValueError, random.choice, a, p=p)
-    
+
     def test_choice_p_non_contiguous(self):
         p = np.ones(10) / 5
         p[1::2] = 3.0
@@ -827,7 +832,7 @@ class TestRandomDist(object):
         # gh-2089
         alpha = np.array([5.4e-01, -1.0e-16])
         assert_raises(ValueError, random.dirichlet, alpha)
-    
+
     def test_dirichlet_alpha_non_contiguous(self):
         a = np.array([51.72840233779265162, -1.0, 39.74494232180943953])
         alpha = a[::2]

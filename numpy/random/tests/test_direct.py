@@ -385,7 +385,7 @@ class TestPCG64(Base):
         cls.data2 = cls._read_csv(join(pwd, './data/pcg64-testset-2.csv'))
         cls.seed_error_type = (ValueError, TypeError)
         cls.invalid_init_types = [(3.2,), ([None],), (1, None)]
-        cls.invalid_init_values = [(-1,), (1, 1000)]
+        cls.invalid_init_values = [(-1,)]
 
     def test_seed_float_array(self):
         assert_raises(self.seed_error_type, self.bit_generator,
@@ -429,7 +429,7 @@ class TestPCG32(TestPCG64):
         cls.seed_error_type = TypeError
         cls.invalid_init_types = [(np.array([1, 2]), None), (3.2,),
                                   (None, np.zeros(1))]
-        cls.invalid_init_values = [(-1,), (None, -1), (None, 2 ** 129 + 1)]
+        cls.invalid_init_values = [(-1,)]
 
     def test_seed_out_of_range_array(self):
         bg = self.bit_generator([2 ** (2 * self.bits + 1)])

@@ -92,12 +92,15 @@ def _coerce_to_uint32_array(x):
     output. This is to make sure that the interpretation of a sequence of
     integers is the same regardless of numpy's default integer type, which
     differs on different platforms.
+
     Parameters
     ----------
     x : int, str, sequence of int or str
+
     Returns
     -------
     seed_array : uint32 array
+
     Examples
     --------
     >>> import numpy as np
@@ -222,9 +225,16 @@ cdef class SeedSequence():
         text = '\n'.join(lines)
         return text
 
+    @property
+    def state(self):
+        return {k:getattr(self, k) for k in
+                ['entropy', 'program_entropy', 'spawn_key', 'pool_size']
+                if getattr(self, k) is not None}
+
     cdef mix_entropy(self, np.ndarray[np.npy_uint32, ndim=1] mixer,
                      np.ndarray[np.npy_uint32, ndim=1] entropy_array):
         """ Mix in the given entropy to mixer.
+
         Parameters
         ----------
 
@@ -340,6 +350,7 @@ cdef class SeedSequence():
         Parameters
         ----------
         n_children : int
+
         Returns
         -------
         seqs : list of `SeedSequence` s
@@ -355,6 +366,7 @@ cdef class SeedSequence():
             ))
         self.n_children_spawned += n_children
         return seqs
+
 
 cdef class BitGenerator():
     """
