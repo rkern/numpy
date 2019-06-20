@@ -3,19 +3,25 @@ BitGenerator base class and SeedSequence used to seed the BitGenerators.
 
 SeedSequence is derived from Melissa E. O'Neill's C++11 `std::seed_seq`
 implementation, as it has a lot of nice properties that we want.
+
 https://gist.github.com/imneme/540829265469e673d045
 http://www.pcg-random.org/posts/developing-a-seed_seq-alternative.html
+
 The MIT License (MIT)
+
 Copyright (c) 2015 Melissa E. O'Neill
 Copyright (c) 2019 Robert Kern
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
 to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
+
 The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.
+
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -80,6 +86,7 @@ def _int_to_uint32_array(n):
 
 def _coerce_to_uint32_array(x):
     """ Coerce an input to a uint32 array.
+
     If a `uint32` array, pass it through directly.
     If a non-negative integer, then break it up into `uint32` words, lowest
     bits first.
@@ -87,6 +94,7 @@ def _coerce_to_uint32_array(x):
     If a string of decimal digits, interpret as a decimal integer, as above.
     If a sequence of ints or strings, interpret each element as above and
     concatenate.
+
     Note that the handling of `int64` or `uint64` arrays are not just
     straightforward views as `uint32` arrays. If an element is small enough to
     fit into a `uint32`, then it will only take up one `uint32` element in the
@@ -323,9 +331,7 @@ cdef class SeedSequence():
 
         Parameters
         ----------
-
-        mixer: 1D uint32 array, modified in-place
-
+        mixer : 1D uint32 array, modified in-place
         entropy_array : 1D uint32 array
         """
         cdef uint32_t hash_const[1]
@@ -357,6 +363,7 @@ cdef class SeedSequence():
     def get_assembled_entropy(self):
         """ Convert and assemble all entropy sources into a uniform uint32
         array.
+
         Returns
         -------
         entropy_array : 1D uint32 array
@@ -466,14 +473,14 @@ cdef class BitGenerator():
 
     Parameters
     ----------
-    seed_seq: {None, ISeedSequence, int, sequence[int]}, optional
+    seed_seq : {None, ISeedSequence, int, sequence[int]}, optional
         A ISeedSequence to initialize the BitGenerator. If None, one will be
         created. If an int or a sequence of ints, it will be used as the
         entropy for creating a SeedSequence.
 
     Attributes
     ----------
-    lock: threading.Lock
+    lock : threading.Lock
         Lock instance that is shared so that the same bit git generator can
         be used in multiple Generators without corrupting the state. Code that
         generates values from a bit generator should hold the bit generator's
