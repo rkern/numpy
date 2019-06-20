@@ -307,7 +307,8 @@ cdef class SeedSequence():
     @property
     def state(self):
         return {k:getattr(self, k) for k in
-                ['entropy', 'program_entropy', 'spawn_key', 'pool_size']
+                ['entropy', 'program_entropy', 'spawn_key', 'pool_size',
+                 'n_children_spawned']
                 if getattr(self, k) is not None}
 
     cdef mix_entropy(self, np.ndarray[np.npy_uint32, ndim=1] mixer,
