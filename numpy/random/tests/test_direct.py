@@ -6,7 +6,7 @@ from numpy.testing import (assert_equal, assert_allclose, assert_array_equal,
                            assert_raises)
 import pytest
 
-from numpy.random import (Generator, MT19937, DSFMT, ThreeFry, PCG32, PCG64,
+from numpy.random import (Generator, MT19937, ThreeFry, PCG32, PCG64,
                           Philox, Xoshiro256, Xoshiro512, RandomState,
                           SeedSequence)
 from numpy.random.common import interface
@@ -503,50 +503,3 @@ class TestMT19937(Base):
         bit_generator.state = tup
         actual = rs.integers(2 ** 16)
         assert_equal(actual, desired)
-
-
-class TestDSFMT(Base):
-    @classmethod
-    def setup_class(cls):
-        cls.bit_generator = DSFMT
-        cls.bits = 53
-        cls.dtype = np.uint64
-        cls.data1 = cls._read_csv(join(pwd, './data/dSFMT-testset-1.csv'))
-        cls.data2 = cls._read_csv(join(pwd, './data/dSFMT-testset-2.csv'))
-        cls.seed_error_type = TypeError
-        cls.invalid_init_types = [(3.14,), np.arange(10, dtype=float)]
-        cls.invalid_init_values = [(-1,)]
-
-    def test_uniform_double(self):
-        rs = Generator(self.bit_generator(*self.data1['seed']))
-        assert_array_equal(uniform_from_dsfmt(self.data1['data']),
-                           rs.random(1000))
-
-        rs = Generator(self.bit_generator(*self.data2['seed']))
-        assert_equal(uniform_from_dsfmt(self.data2['data']),
-                     rs.random(1000))
-
-    def test_gauss_inv(self):
-        n = 25
-        rs = RandomState(self.bit_generator(*self.data1['seed']))
-        gauss = rs.standard_normal(n)
-        assert_allclose(gauss,
-                        gauss_from_uint(self.data1['data'], n, 'dsfmt'))
-
-        rs = RandomState(self.bit_generator(*self.data2['seed']))
-        gauss = rs.standard_normal(25)
-        assert_allclose(gauss,
-                        gauss_from_uint(self.data2['data'], n, 'dsfmt'))
-
-    def test_uniform_float(self):
-        rs = Generator(self.bit_generator(*self.data1['seed']))
-        vals = uniform32_from_uint(self.data1['data'], self.bits)
-        uniforms = rs.random(len(vals), dtype=np.float32)
-        assert_allclose(uniforms, vals)
-        assert_equal(uniforms.dtype, np.float32)
-
-        rs = Generator(self.bit_generator(*self.data2['seed']))
-        vals = uniform32_from_uint(self.data2['data'], self.bits)
-        uniforms = rs.random(len(vals), dtype=np.float32)
-        assert_allclose(uniforms, vals)
-        assert_equal(uniforms.dtype, np.float32)

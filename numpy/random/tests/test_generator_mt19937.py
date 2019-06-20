@@ -21,19 +21,19 @@ def endpoint(request):
 class TestSeed(object):
     def test_scalar(self):
         s = Generator(MT19937(0))
-        assert_equal(s.integers(1000), 684)
+        assert_equal(s.integers(1000), 548)
         s = Generator(MT19937(4294967295))
-        assert_equal(s.integers(1000), 419)
+        assert_equal(s.integers(1000), 97)
 
     def test_array(self):
         s = Generator(MT19937(range(10)))
-        assert_equal(s.integers(1000), 468)
+        assert_equal(s.integers(1000), 410)
         s = Generator(MT19937(np.arange(10)))
-        assert_equal(s.integers(1000), 468)
+        assert_equal(s.integers(1000), 410)
         s = Generator(MT19937([0]))
-        assert_equal(s.integers(1000), 973)
+        assert_equal(s.integers(1000), 844)
         s = Generator(MT19937([4294967295]))
-        assert_equal(s.integers(1000), 265)
+        assert_equal(s.integers(1000), 635)
 
     def test_seedsequence(self):
         s = MT19937(SeedSequence(0))
@@ -328,14 +328,14 @@ class TestIntegers(object):
         # in the range [0, 6) for all but bool, where the range
         # is [0, 2). Hashes are for little endian numbers.
         tgt = {'bool': '7dd3170d7aa461d201a65f8bcf3944b0',
-               'int16': '1b7741b80964bb190c50d541dca1cac1',
-               'int32': '4dc9fcc2b395577ebb51793e58ed1a05',
-               'int64': '17db902806f448331b5a758d7d2ee672',
-               'int8': '27dd30c4e08a797063dffac2490b0be6',
-               'uint16': '1b7741b80964bb190c50d541dca1cac1',
-               'uint32': '4dc9fcc2b395577ebb51793e58ed1a05',
-               'uint64': '17db902806f448331b5a758d7d2ee672',
-               'uint8': '27dd30c4e08a797063dffac2490b0be6'}
+               'int16': '2d26cafb53cb0f5acbb9b3fe86b36991',
+               'int32': '54f153d6ae944ce0dde49a66602959bb',
+               'int64': '47a068f62fda47f6034aa745e39a1b0d',
+               'int8': '1d71d3947cd98598b4f00a77c117d62a',
+               'uint16': '2d26cafb53cb0f5acbb9b3fe86b36991',
+               'uint32': '54f153d6ae944ce0dde49a66602959bb',
+               'uint64': '47a068f62fda47f6034aa745e39a1b0d',
+               'uint8': '1d71d3947cd98598b4f00a77c117d62a'}
 
         for dt in self.itype[1:]:
             random = Generator(MT19937(1234))
@@ -486,6 +486,7 @@ class TestIntegers(object):
         with pytest.raises(ValueError):
             random.integers(0, 200, size=10, dtype=other_byteord_dt)
 
+
 class TestRandomDist(object):
     # Make sure the random distribution returns the correct value for a
     # given seed
@@ -496,9 +497,9 @@ class TestRandomDist(object):
     def test_integers(self):
         random = Generator(MT19937(self.seed))
         actual = random.integers(-99, 99, size=(3, 2))
-        desired = np.array([[31, 3],
-                            [-52, 41],
-                            [-48, -66]])
+        desired = np.array([[23, -32],
+                            [18, -70],
+                            [76, -53]])
         assert_array_equal(actual, desired)
 
     def test_integers_masked(self):
@@ -506,17 +507,15 @@ class TestRandomDist(object):
         # uint32 in an interval.
         random = Generator(MT19937(self.seed))
         actual = random.integers(0, 99, size=(3, 2), dtype=np.uint32)
-        desired = np.array([[2, 47],
-                            [12, 51],
-                            [33, 43]], dtype=np.uint32)
+        desired = np.array([[61, 33],
+                            [58, 14],
+                            [87, 23]], dtype=np.uint32)
         assert_array_equal(actual, desired)
 
     def test_integers_closed(self):
         random = Generator(MT19937(self.seed))
         actual = random.integers(-99, 99, size=(3, 2), endpoint=True)
-        desired = np.array([[31, 3],
-                            [-52, 41],
-                            [-48, -66]])
+        desired = np.array([[24, -32], [18, -70], [77, -53]])
         assert_array_equal(actual, desired)
 
     def test_integers_max_int(self):
@@ -563,7 +562,7 @@ class TestRandomDist(object):
     def test_choice_uniform_replace(self):
         random = Generator(MT19937(self.seed))
         actual = random.choice(4, 4)
-        desired = np.array([2, 3, 2, 3], dtype=np.int64)
+        desired = np.array([2, 1, 2, 0], dtype=np.int64)
         assert_array_equal(actual, desired)
 
     def test_choice_nonuniform_replace(self):
@@ -587,19 +586,19 @@ class TestRandomDist(object):
     def test_choice_noninteger(self):
         random = Generator(MT19937(self.seed))
         actual = random.choice(['a', 'b', 'c', 'd'], 4)
-        desired = np.array(['c', 'd', 'c', 'd'])
+        desired = np.array(['c', 'b', 'c', 'a'])
         assert_array_equal(actual, desired)
 
     def test_choice_multidimensional_default_axis(self):
         random = Generator(MT19937(self.seed))
         actual = random.choice([[0, 1], [2, 3], [4, 5], [6, 7]], 3)
-        desired = np.array([[4, 5], [6, 7], [4, 5]])
+        desired = np.array([[4, 5], [2, 3], [4, 5]])
         assert_array_equal(actual, desired)
 
     def test_choice_multidimensional_custom_axis(self):
         random = Generator(MT19937(self.seed))
         actual = random.choice([[0, 1], [2, 3], [4, 5], [6, 7]], 1, axis=1)
-        desired = np.array([[0], [2], [4], [6]])
+        desired = np.array([[1], [3], [5], [7]])
         assert_array_equal(actual, desired)
 
     def test_choice_exceptions(self):
@@ -902,9 +901,9 @@ class TestRandomDist(object):
     def test_hypergeometric(self):
         random = Generator(MT19937(self.seed))
         actual = random.hypergeometric(10.1, 5.5, 14, size=(3, 2))
-        desired = np.array([[10, 10],
-                            [10, 10],
-                            [9, 9]])
+        desired = np.array([[9, 9],
+                            [10, 9],
+                            [9, 10]])
         assert_array_equal(actual, desired)
 
         # Test nbad = 0
@@ -1866,7 +1865,8 @@ class TestBroadcast(object):
         bad_nbad = [-2]
         bad_nsample_one = [-1]
         bad_nsample_two = [4]
-        desired = np.array([1, 1, 1])
+        hypergeom = random.hypergeometric
+        desired = np.array([0, 0, 1])
 
         random = Generator(MT19937(self.seed))
         actual = random.hypergeometric(ngood * 3, nbad, nsample)
@@ -1896,6 +1896,11 @@ class TestBroadcast(object):
         assert_raises(ValueError, random.hypergeometric, 10, -1, 20)
         assert_raises(ValueError, random.hypergeometric, 10, 10, -1)
         assert_raises(ValueError, random.hypergeometric, 10, 10, 25)
+
+        # ValueError for arguments that are too big.
+        assert_raises(ValueError, hypergeom, 2**30, 10, 20)
+        assert_raises(ValueError, hypergeom, 999, 2**31, 50)
+        assert_raises(ValueError, hypergeom, 999, [2**29, 2**30], 1000)
 
     def test_logseries(self):
         p = [0.5]
