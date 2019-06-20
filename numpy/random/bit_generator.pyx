@@ -3,19 +3,25 @@ BitGenerator base class and SeedSequence used to seed the BitGenerators.
 
 SeedSequence is derived from Melissa E. O'Neill's C++11 `std::seed_seq`
 implementation, as it has a lot of nice properties that we want.
+
 https://gist.github.com/imneme/540829265469e673d045
 http://www.pcg-random.org/posts/developing-a-seed_seq-alternative.html
+
 The MIT License (MIT)
+
 Copyright (c) 2015 Melissa E. O'Neill
-Copyright (c) 2019 Robert Kern
+Copyright (c) 2019 NumPy Developers
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
 to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
+
 The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.
+
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -80,6 +86,7 @@ def _int_to_uint32_array(n):
 
 def _coerce_to_uint32_array(x):
     """ Coerce an input to a uint32 array.
+
     If a `uint32` array, pass it through directly.
     If a non-negative integer, then break it up into `uint32` words, lowest
     bits first.
@@ -87,6 +94,7 @@ def _coerce_to_uint32_array(x):
     If a string of decimal digits, interpret as a decimal integer, as above.
     If a sequence of ints or strings, interpret each element as above and
     concatenate.
+
     Note that the handling of `int64` or `uint64` arrays are not just
     straightforward views as `uint32` arrays. If an element is small enough to
     fit into a `uint32`, then it will only take up one `uint32` element in the
@@ -252,23 +260,27 @@ cdef class SeedSequence():
     create ``n`` SeedSequences that can be used to seed independent
     BitGenerators, i.e. for different threads.
 
-    To recreate a SeedSequence ``sq`` exactly, you can use ``str(sq)``
-
     Parameters
     ----------
-    entropy: {{None, int, sequence[int]}}, optional
-        The entropy for creating a SeedSequence.
-    program_entropy: {{None, int, sequence[int]}}, optional
+    entropy : {None, int, sequence[int]}, optional
+        The entropy for creating a `SeedSequence`.
+    program_entropy : {None, int, sequence[int]}, optional
         A second source of entropy, typically per-application
-    spawn_key: {{(), sequence[int]}}, optional
+    spawn_key : {(), sequence[int]}, optional
         A third source of entropy, used internally when calling
         `SeedSequence.spawn`
-    pool_size: {{int}}, optional
-        Size of the pooled entropy to store. Default is 4
+    pool_size : {int}, optional
+        Size of the pooled entropy to store. Default is 4 to give a 128-bit
+        entropy pool. 8 (for 256 bits) is another reasonable choice if working
+        with larger PRNGs, but there is very little to be gained by selecting
+        another value.
+    n_children_spawned : {int}, optional
+        The number of children already spawned. Only pass this if
+        reconstructing a `SeedSequence` from a serialized form.
     """
 
     def __init__(self, entropy=None, program_entropy=None, spawn_key=(),
-                 pool_size=DEFAULT_POOL_SIZE):
+                 pool_size=DEFAULT_POOL_SIZE, n_children_spawned=0):
         if pool_size < DEFAULT_POOL_SIZE:
             raise ValueError("The size of the entropy pool should be at least "
                              f"{DEFAULT_POOL_SIZE}")
@@ -282,7 +294,7 @@ cdef class SeedSequence():
         self.program_entropy = program_entropy
         self.spawn_key = tuple(spawn_key)
         self.pool_size = pool_size
-        self.n_children_spawned = 0
+        self.n_children_spawned = n_children_spawned
 
         self.pool = np.zeros(pool_size, dtype=np.uint32)
         self.mix_entropy(self.pool, self.get_assembled_entropy())
@@ -300,6 +312,8 @@ cdef class SeedSequence():
             lines.append(f'    spawn_key={self.spawn_key!r},')
         if self.pool_size != DEFAULT_POOL_SIZE:
             lines.append(f'    pool_size={self.pool_size!r},')
+        if self.n_children_spawned != 0:
+            lines.append(f'    n_children_spawned={self.n_children_spawned!r},')
         lines.append(')')
         text = '\n'.join(lines)
         return text
@@ -307,7 +321,8 @@ cdef class SeedSequence():
     @property
     def state(self):
         return {k:getattr(self, k) for k in
-                ['entropy', 'program_entropy', 'spawn_key', 'pool_size']
+                ['entropy', 'program_entropy', 'spawn_key', 'pool_size',
+                 'n_children_spawned']
                 if getattr(self, k) is not None}
 
     cdef mix_entropy(self, np.ndarray[np.npy_uint32, ndim=1] mixer,
@@ -316,9 +331,7 @@ cdef class SeedSequence():
 
         Parameters
         ----------
-
-        mixer: 1D uint32 array, modified in-place
-
+        mixer : 1D uint32 array, modified in-place
         entropy_array : 1D uint32 array
         """
         cdef uint32_t hash_const[1]
@@ -350,6 +363,7 @@ cdef class SeedSequence():
     def get_assembled_entropy(self):
         """ Convert and assemble all entropy sources into a uniform uint32
         array.
+
         Returns
         -------
         entropy_array : 1D uint32 array
@@ -459,14 +473,14 @@ cdef class BitGenerator():
 
     Parameters
     ----------
-    seed_seq: {None, ISeedSequence, int, sequence[int]}, optional
+    seed_seq : {None, ISeedSequence, int, sequence[int]}, optional
         A ISeedSequence to initialize the BitGenerator. If None, one will be
         created. If an int or a sequence of ints, it will be used as the
         entropy for creating a SeedSequence.
 
     Attributes
     ----------
-    lock: threading.Lock
+    lock : threading.Lock
         Lock instance that is shared so that the same bit git generator can
         be used in multiple Generators without corrupting the state. Code that
         generates values from a bit generator should hold the bit generator's
