@@ -56,7 +56,7 @@ np.import_array()
 
 DECIMAL_RE = re.compile(r'[0-9]+')
 
-cdef uint32_t DEFAULT_POOL_SIZE = 4
+cdef uint32_t DEFAULT_POOL_SIZE = 4  # Appears also in docstring for pool_size
 cdef uint32_t INIT_A = 0x43b0d7e5
 cdef uint32_t MULT_A = 0x931e8875
 cdef uint32_t INIT_B = 0x8b51f9dd
@@ -159,25 +159,31 @@ cdef uint32_t mix(uint32_t x, uint32_t y):
 
 cdef class SeedSequence():
     """
-    SeedSequence(entropy=None, program_entropy=None, spawn_key=(), pool_size=%d)
-    creates an appropriate seed sequence for BitGenerators via the
-    `generate_state` method. Calling `spawn(n) <spawn>` will create n
-    SeedSequences that can be used to seed independent BitGenerators, i.e. for
-    different threads.
+    SeedSequence(entropy=None, program_entropy=None, spawn_key=(), pool_size=4)
+
+    SeedSequence mixes sources of entropy in a reproducable way to set the
+    initial state for independent and very probably non-overlapping
+    BitGenerators.
+
+    Once the SeedSequence is instantiated, you can call the `generate_state`
+    method to get an appropriately sized seed. Calling `spawn(n) <spawn>` will
+    create ``n`` SeedSequences that can be used to seed independent
+    BitGenerators, i.e. for different threads.
+
+    To recreate a SeedSequence ``sq`` exactly, you can use ``str(sq)``
 
     Parameters
     ----------
-    entropy: {None, int, sequence[int]}, optional
+    entropy: {{None, int, sequence[int]}}, optional
         The entropy for creating a SeedSequence.
-
-    program_entropy: {None, int, sequence[int]}, optional
+    program_entropy: {{None, int, sequence[int]}}, optional
         A second source of entropy, typically per-application
-
-    spawn_key: {(), sequence[int]}, optional
+    spawn_key: {{(), sequence[int]}}, optional
         A third source of entropy, used internally when calling
         `SeedSequence.spawn`
-
-    """ % DEFAULT_POOL_SIZE
+    pool_size: {{int}}, optional
+        Size of the pooled entropy to store. Default is 4
+    """
 
     def __init__(self, entropy=None, program_entropy=None, spawn_key=(),
                  pool_size=DEFAULT_POOL_SIZE):
@@ -379,6 +385,9 @@ cdef class BitGenerator():
 
     def __init__(self, seed_seq=None):
         self.lock = Lock()
+        self._bitgen.state = <void *>0
+        if type(self) is BitGenerator:
+            raise NotImplementedError('BitGenerator is a base class and cannot be instantized')
 
         self._ctypes = None
         self._cffi = None
@@ -451,7 +460,7 @@ cdef class BitGenerator():
         return random_raw(&self._bitgen, self.lock, size, output)
 
     def _benchmark(self, Py_ssize_t cnt, method=u'uint64'):
-        ''' Used in tests'''
+        '''Used in tests'''
         return benchmark(&self._bitgen, self.lock, cnt, method)
 
     @property
@@ -493,7 +502,6 @@ cdef class BitGenerator():
             * next_double - function pointer to produce doubles
             * bitgen - pointer to the bit generator struct
         """
-        if self._cffi is not None:
-            return self._cffi
-        self._cffi = prepare_cffi(&self._bitgen)
+        if self._cffi is None:
+            self._cffi = prepare_cffi(&self._bitgen)
         return self._cffi

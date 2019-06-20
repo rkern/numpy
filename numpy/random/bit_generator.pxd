@@ -3,12 +3,12 @@ from .distributions cimport bitgen_t
 cimport numpy as np
 
 cdef class BitGenerator():
-    cdef public object _seed_seq
-    cdef public object lock
+    cdef readonly object _seed_seq
+    cdef readonly object lock
     cdef bitgen_t _bitgen
-    cdef public object _ctypes
-    cdef public object _cffi
-    cdef public object capsule
+    cdef readonly object _ctypes
+    cdef readonly object _cffi
+    cdef readonly object capsule
 
 
 cdef class SeedSequence():
