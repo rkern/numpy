@@ -125,7 +125,7 @@ def test_seedsequence():
     s2 = SeedSequence(**s1.state)
     assert_equal(s1.state, s2.state)
 
-    assert_raises(NotImplementedError, ISeedSequence)
+    assert_raises(TypeError, ISeedSequence)
     dummy = SeedlessSeedSequence()
     assert_raises(NotImplementedError, dummy.generate_state, 10)
     assert len(dummy.spawn(10)) == 10

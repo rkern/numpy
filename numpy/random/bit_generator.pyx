@@ -199,7 +199,6 @@ class ISeedSequence(abc.ABC):
 
 class ISpawnableSeedSequence(ISeedSequence):
 
-<<<<<<< HEAD
     @abc.abstractmethod
     def spawn(self, n_children):
         """

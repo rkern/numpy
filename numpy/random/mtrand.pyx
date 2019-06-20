@@ -154,9 +154,9 @@ cdef class RandomState:
 
         >>> from numpy.random import MT19937
         >>> from numpy.random import RandomState, SeedSequence
-        >>> rs = RandomState(MT19937(SeedSequence(123456789))
+        >>> rs = RandomState(MT19937(SeedSequence(123456789)))
         # Later, you want to restart the stream
-        >>> rs = RandomState(My19937(SeedSequence(987654321)))
+        >>> rs = RandomState(MT19937(SeedSequence(987654321)))
         """
         if not isinstance(self._bit_generator, _MT19937):
             raise TypeError('can only re-seed a MT19937 BitGenerator')

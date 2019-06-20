@@ -1865,7 +1865,6 @@ class TestBroadcast(object):
         bad_nbad = [-2]
         bad_nsample_one = [-1]
         bad_nsample_two = [4]
-        hypergeom = random.hypergeometric
         desired = np.array([0, 0, 1])
 
         random = Generator(MT19937(self.seed))
@@ -1885,17 +1884,18 @@ class TestBroadcast(object):
         assert_raises(ValueError, random.hypergeometric, ngood, nbad * 3, bad_nsample_two)
 
         random = Generator(MT19937(self.seed))
-        actual = random.hypergeometric(ngood, nbad, nsample * 3)
+        hypergeom = random.hypergeometric
+        actual = hypergeom(ngood, nbad, nsample * 3)
         assert_array_equal(actual, desired)
-        assert_raises(ValueError, random.hypergeometric, bad_ngood, nbad, nsample * 3)
-        assert_raises(ValueError, random.hypergeometric, ngood, bad_nbad, nsample * 3)
-        assert_raises(ValueError, random.hypergeometric, ngood, nbad, bad_nsample_one * 3)
-        assert_raises(ValueError, random.hypergeometric, ngood, nbad, bad_nsample_two * 3)
+        assert_raises(ValueError, hypergeom, bad_ngood, nbad, nsample * 3)
+        assert_raises(ValueError, hypergeom, ngood, bad_nbad, nsample * 3)
+        assert_raises(ValueError, hypergeom, ngood, nbad, bad_nsample_one * 3)
+        assert_raises(ValueError, hypergeom, ngood, nbad, bad_nsample_two * 3)
 
-        assert_raises(ValueError, random.hypergeometric, -1, 10, 20)
-        assert_raises(ValueError, random.hypergeometric, 10, -1, 20)
-        assert_raises(ValueError, random.hypergeometric, 10, 10, -1)
-        assert_raises(ValueError, random.hypergeometric, 10, 10, 25)
+        assert_raises(ValueError, hypergeom, -1, 10, 20)
+        assert_raises(ValueError, hypergeom, 10, -1, 20)
+        assert_raises(ValueError, hypergeom, 10, 10, -1)
+        assert_raises(ValueError, hypergeom, 10, 10, 25)
 
         # ValueError for arguments that are too big.
         assert_raises(ValueError, hypergeom, 2**30, 10, 20)
