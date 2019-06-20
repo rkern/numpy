@@ -148,21 +148,19 @@ cdef class RandomState:
         Arguments are directly passed to the BitGenerator. This is a convenience
         function.
 
-        The best method to access seed is to directly use a BitGenerator
-        instance. This example demonstrates this best practice.
+        The best practice is to **not** reseed a BitGenerator, rather to
+        recreate a new one. This method is here for legacy reasons.
+        This example demonstrates best practice.
 
         >>> from numpy.random import MT19937
-        >>> from numpy.random import RandomState
-        >>> bit_generator = MT19937(123456789)
-        >>> rs = RandomState(bit_generator)
-        >>> bit_generator.seed(987654321)
-
-        These best practice examples are equivalent to
-
-        >>> rs = RandomState(MT19937())
-        >>> rs.seed(987654321)
+        >>> from numpy.random import RandomState, SeedSequence
+        >>> rs = RandomState(MT19937(SeedSequence(123456789))
+        # Later, you want to restart the stream
+        >>> rs = RandomState(My19937(SeedSequence(987654321)))
         """
-        self._bit_generator.seed(*args, **kwargs)
+        if not isinstance(self._bit_generator, _MT19937):
+            raise TypeError('can only re-seed a MT19937 BitGenerator')
+        self._bit_generator.legacy_seeding(*args, **kwargs)
         self._reset_gauss()
 
     def get_state(self, legacy=True):
