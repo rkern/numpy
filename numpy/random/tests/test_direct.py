@@ -7,7 +7,8 @@ from numpy.testing import (assert_equal, assert_allclose, assert_array_equal,
 import pytest
 
 from numpy.random import (Generator, MT19937, DSFMT, ThreeFry, PCG32, PCG64,
-                          Philox, Xoshiro256, Xoshiro512, RandomState)
+                          Philox, Xoshiro256, Xoshiro512, RandomState,
+                          SeedSequence)
 from numpy.random.common import interface
 
 try:
@@ -116,6 +117,18 @@ def gauss_from_uint(x, n, bits):
         gauss.append(f * x1)
 
     return gauss[:n]
+
+def test_seedsequence():
+    from numpy.random.bit_generator import SeedlessSeedSequence, ISeedSequence
+
+    s1 = SeedSequence(range(10), 1, (1, 2), pool_size=6)
+    s2 = SeedSequence(**s1.state)
+    assert_equal(s1.state, s2.state)
+
+    assert_raises(NotImplementedError, ISeedSequence)
+    dummy = SeedlessSeedSequence()
+    assert_raises(NotImplementedError, dummy.generate_state, 10)
+    assert len(dummy.spawn(10)) == 10
 
 
 class Base(object):
@@ -244,6 +257,10 @@ class Base(object):
                            Generator(reloaded).standard_normal(1000))
         assert bit_generator is not reloaded
         assert_state_equal(reloaded_state, state)
+
+        ss = SeedSequence(100)
+        aa = pickle.loads(pickle.dumps(ss))
+        assert_equal(ss.state, aa.state)
 
     def test_invalid_state_type(self):
         bit_generator = self.bit_generator(*self.data1['seed'])

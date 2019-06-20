@@ -159,8 +159,40 @@ cdef uint32_t mix(uint32_t x, uint32_t y):
     result ^= result >> XSHIFT
     return result
 
+cdef class ISeedSequence():
+    """
+    ISeedSequence() is the abstract base class for SeedSequences.
 
-cdef class SeedSequence():
+    See Also
+    --------
+    `SeedSequence`
+    `SeedlessSeedSequence`
+    """
+
+    def __init__(self):
+        raise NotImplementedError('ISeedSequence is a base class and cannot be instantized')
+
+
+    def generate_state(self, n_words, dtype=np.uint32):
+        raise NotImplementedError('seedless SeedSequences cannot generate state')
+
+    def spawn(self, n_children):
+        return [self] * n_children
+
+cdef class SeedlessSeedSequence(ISeedSequence):
+    """
+    SeedlessSeedSequence() is used for BitGenerators with no need for seed state.
+
+    See Also
+    --------
+    `SeedSequence`
+    `ISeedSequence`
+    """
+
+    def __init__(self):
+        pass
+
+cdef class SeedSequence(ISeedSequence):
     """
     SeedSequence(entropy=None, program_entropy=None, spawn_key=(), pool_size=4)
 
@@ -377,8 +409,8 @@ cdef class BitGenerator():
 
     Parameters
     ----------
-    seed_seq: {None, SeedSequence, int, sequence[int]}, optional
-        A SeedSequence to initialize the BitGenerator. If None, one will be
+    seed_seq: {None, ISeedSequence, int, sequence[int]}, optional
+        A ISeedSequence to initialize the BitGenerator. If None, one will be
         created. If an int or a sequence of ints, it will be used as the
         entropy for creating a SeedSequence.
 
@@ -406,7 +438,7 @@ cdef class BitGenerator():
 
         cdef const char *name = "BitGenerator"
         self.capsule = PyCapsule_New(<void *>&self._bitgen, name, NULL)
-        if not isinstance(seed_seq, SeedSequence):
+        if not isinstance(seed_seq, ISeedSequence):
             seed_seq = SeedSequence(seed_seq)
         self._seed_seq = seed_seq
 

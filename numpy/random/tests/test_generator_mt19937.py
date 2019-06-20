@@ -39,11 +39,6 @@ class TestSeed(object):
         s = MT19937(SeedSequence(0))
         assert_equal(s.random_raw(1), 2300381676)
 
-    def test_seedsequence_eq(self):
-        s1 = SeedSequence(range(10), 1, (1, 2), pool_size=6)
-        s2 = SeedSequence(**s1.state)
-        assert_equal(s1.state, s2.state)
-
     def test_invalid_scalar(self):
         # seed must be an unsigned 32 bit integer
         assert_raises(TypeError, MT19937, -0.5)

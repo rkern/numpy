@@ -11,7 +11,15 @@ cdef class BitGenerator():
     cdef readonly object capsule
 
 
-cdef class SeedSequence():
+cdef class ISeedSequence():
+    pass
+
+
+cdef class SeedlessSeedSequence(ISeedSequence):
+    pass
+
+
+cdef class SeedSequence(ISeedSequence):
     cdef readonly object entropy
     cdef readonly object program_entropy
     cdef readonly tuple spawn_key
