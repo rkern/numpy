@@ -40,4 +40,7 @@ overlapping streams.
 .. autosummary::
    :toctree: generated/
 
+    bit_generator.ISeedSequence
+    bit_generator.ISpawnableSeedSequence
     SeedSequence
+    bit_generator.SeedlessSeedSequence

@@ -175,8 +175,7 @@ class ISeedSequence(abc.ABC):
 
     See Also
     --------
-    `SeedSequence`
-    `SeedlessSeedSequence`
+    SeedSequence, SeedlessSeedSequence
     """
 
     @abc.abstractmethod
@@ -231,8 +230,7 @@ cdef class SeedlessSeedSequence():
 
     See Also
     --------
-    `SeedSequence`
-    `ISeedSequence`
+    SeedSequence, ISeedSequence
     """
 
     def generate_state(self, n_words, dtype=np.uint32):
@@ -360,7 +358,7 @@ cdef class SeedSequence():
                 mixer[i_dst] = mix(mixer[i_dst],
                                    hashmix(entropy_array[i_src], hash_const))
 
-    def get_assembled_entropy(self):
+    cdef get_assembled_entropy(self):
         """ Convert and assemble all entropy sources into a uniform uint32
         array.
 
@@ -486,9 +484,9 @@ cdef class BitGenerator():
         generates values from a bit generator should hold the bit generator's
         lock.
 
-    SeeAlso
+    See Also
     -------
-    `SeedSequence`
+    SeedSequence
     """
 
     def __init__(self, seed_seq=None):
