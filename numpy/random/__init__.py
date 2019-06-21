@@ -98,6 +98,7 @@ set_state            Set state of generator.
 BitGenerator Streams that work with Generator
 --------------------------------------------- ---
 MT19937
+JSF64
 PCG32
 PCG64
 Philox
@@ -167,6 +168,7 @@ from .mtrand import *
 from .generator import Generator
 from .bit_generator import SeedSequence
 from .mt19937 import MT19937
+from .jsf64 import JSF64
 from .pcg32 import PCG32
 from .pcg64 import PCG64
 from .philox import Philox
@@ -175,7 +177,7 @@ from .xoshiro256 import Xoshiro256
 from .xoshiro512 import Xoshiro512
 from .mtrand import RandomState
 
-__all__ += ['Generator', 'RandomState', 'SeedSequence', 'MT19937',
+__all__ += ['Generator', 'RandomState', 'SeedSequence', 'MT19937', 'JSF64',
             'Philox', 'PCG64', 'PCG32', 'ThreeFry', 'Xoshiro256', 'Xoshiro512']
 
 
