@@ -180,7 +180,8 @@ from .xoshiro512 import Xoshiro512
 from .mtrand import RandomState
 
 __all__ += ['Generator', 'RandomState', 'SeedSequence', 'MT19937', 'JSF64',
-            'Philox', 'PCG64', 'PCG32', 'ThreeFry', 'Xoshiro256', 'Xoshiro512']
+            'Philox', 'PCG64', 'PCG32', 'SFC64', 'ThreeFry', 'Xoshiro256',
+            'Xoshiro512']
 
 
 def __RandomState_ctor():
