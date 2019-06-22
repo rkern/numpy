@@ -102,6 +102,7 @@ JSF64
 PCG32
 PCG64
 Philox
+SFC64
 ThreeFry
 Xoshiro256
 Xoshiro512
@@ -172,6 +173,7 @@ from .jsf64 import JSF64
 from .pcg32 import PCG32
 from .pcg64 import PCG64
 from .philox import Philox
+from .sfc64 import SFC64
 from .threefry import ThreeFry
 from .xoshiro256 import Xoshiro256
 from .xoshiro512 import Xoshiro512
