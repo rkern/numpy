@@ -4,37 +4,37 @@ cimport numpy as np
 from .common cimport *
 from .bit_generator cimport BitGenerator
 
-__all__ = ['SFC64']
+__all__ = ['GJrand']
 
-cdef extern from "src/sfc64/sfc64.h":
-    struct s_sfc64_state:
+cdef extern from "src/gjrand/gjrand.h":
+    struct s_gjrand_state:
         uint64_t s[4]
         int has_uint32
         uint32_t uinteger
 
-    ctypedef s_sfc64_state sfc64_state
-    uint64_t sfc64_next64(sfc64_state *state)  nogil
-    uint32_t sfc64_next32(sfc64_state *state)  nogil
-    void sfc64_set_seed(sfc64_state *state, uint64_t *seed)
-    void sfc64_get_state(sfc64_state *state, uint64_t *state_arr, int *has_uint32, uint32_t *uinteger)
-    void sfc64_set_state(sfc64_state *state, uint64_t *state_arr, int has_uint32, uint32_t uinteger)
+    ctypedef s_gjrand_state gjrand_state
+    uint64_t gjrand_next64(gjrand_state *state)  nogil
+    uint32_t gjrand_next32(gjrand_state *state)  nogil
+    void gjrand_set_seed(gjrand_state *state, uint64_t *seed)
+    void gjrand_get_state(gjrand_state *state, uint64_t *state_arr, int *has_uint32, uint32_t *uinteger)
+    void gjrand_set_state(gjrand_state *state, uint64_t *state_arr, int has_uint32, uint32_t uinteger)
 
 
-cdef uint64_t sfc64_uint64(void* st) nogil:
-    return sfc64_next64(<sfc64_state *>st)
+cdef uint64_t gjrand_uint64(void* st) nogil:
+    return gjrand_next64(<gjrand_state *>st)
 
-cdef uint32_t sfc64_uint32(void *st) nogil:
-    return sfc64_next32(<sfc64_state *> st)
+cdef uint32_t gjrand_uint32(void *st) nogil:
+    return gjrand_next32(<gjrand_state *> st)
 
-cdef double sfc64_double(void* st) nogil:
-    return uint64_to_double(sfc64_next64(<sfc64_state *>st))
+cdef double gjrand_double(void* st) nogil:
+    return uint64_to_double(gjrand_next64(<gjrand_state *>st))
 
 
-cdef class SFC64(BitGenerator):
+cdef class GJrand(BitGenerator):
     """
-    SFC64(seed_seq=None)
+    GJrand(seed_seq=None)
 
-    BitGenerator for Chris Doty-Humphrey's Small Fast Chaotic PRNG.
+    BitGenerator for David Blackman's GJrand PRNG.
 
     Parameters
     ----------
@@ -45,43 +45,45 @@ cdef class SFC64(BitGenerator):
 
     Notes
     -----
-    ``SFC64`` is a 256-bit implementation of Chris Doty-Humphrey's Small Fast
-    Chaotic PRNG ([1]_). ``SFC64`` has a few different cycles that one might be
-    on, depending on the seed; the expected period will be about
-    :math:`2^{255}` ([2]_). ``SFC64`` incorporates a 64-bit counter which means
-    that the absolute minimum cycle length is :math:`2^{64}` and that distinct
-    seeds will not run into each other for at least :math:`2**{64}` iterations.
+    ``GJrand`` is a 256-bit implementation of David Blackman's GJrand PRNG ([1]_).
+    ``GJrand`` has a few different cycles that one might be on, depending on the
+    seed; the expected period will be about :math:`2^{255}` ([2]_). ``GJrand`` 
+    incorporates a 64-bit counter which means that the absolute minimum cycle
+    length is :math:`2**{64}` and that distinct seeds will not run into each
+    other for at least :math:`2**{64}` iterations ([3]_).
 
-    ``SFC64`` provides a capsule containing function pointers that produce
+    ``GJrand`` provides a capsule containing function pointers that produce
     doubles, and unsigned 32 and 64- bit integers. These are not
     directly consumable in Python and must be consumed by a ``Generator``
     or similar object that supports low-level access.
 
     **Compatibility Guarantee**
 
-    ``SFC64`` makes a guarantee that a fixed seed will always produce the same
+    ``GJrand`` makes a guarantee that a fixed seed will always produce the same
     random integer stream.
 
     References
     ----------
-    .. [1] "PractRand"
-            http://pracrand.sourceforge.net/RNG_engines.txt
+    .. [1] "gjrand random numbers"
+            http://gjrand.sourceforge.net/
     .. [2] "Random Invertible Mapping Statistics",
             http://www.pcg-random.org/posts/random-invertible-mapping-statistics.html
+    .. [3] "gjrand boasting page"
+            http://gjrand.sourceforge.net/boast.html
     """
 
-    cdef sfc64_state rng_state
+    cdef gjrand_state rng_state
 
     def __init__(self, seed_seq=None):
         BitGenerator.__init__(self, seed_seq)
         self._bitgen.state = <void *>&self.rng_state
-        self._bitgen.next_uint64 = &sfc64_uint64
-        self._bitgen.next_uint32 = &sfc64_uint32
-        self._bitgen.next_double = &sfc64_double
-        self._bitgen.next_raw = &sfc64_uint64
+        self._bitgen.next_uint64 = &gjrand_uint64
+        self._bitgen.next_uint32 = &gjrand_uint32
+        self._bitgen.next_double = &gjrand_double
+        self._bitgen.next_raw = &gjrand_uint64
         # Seed the _bitgen
-        val = self._seed_seq.generate_state(3, np.uint64)
-        sfc64_set_seed(&self.rng_state, <uint64_t*>np.PyArray_DATA(val))
+        val = self._seed_seq.generate_state(2, np.uint64)
+        gjrand_set_seed(&self.rng_state, <uint64_t*>np.PyArray_DATA(val))
         self._reset_state_variables()
 
     cdef _reset_state_variables(self):
@@ -104,7 +106,7 @@ cdef class SFC64(BitGenerator):
         cdef uint32_t uinteger
 
         state_vec = <np.ndarray>np.empty(4, dtype=np.uint64)
-        sfc64_get_state(&self.rng_state,
+        gjrand_get_state(&self.rng_state,
                         <uint64_t *>np.PyArray_DATA(state_vec),
                         &has_uint32, &uinteger)
         return {'bit_generator': self.__class__.__name__,
@@ -127,6 +129,6 @@ cdef class SFC64(BitGenerator):
         state_vec[:] = value['state']['state']
         has_uint32 = value['has_uint32']
         uinteger = value['uinteger']
-        sfc64_set_state(&self.rng_state,
+        gjrand_set_state(&self.rng_state,
                         <uint64_t *>np.PyArray_DATA(state_vec),
                         has_uint32, uinteger)

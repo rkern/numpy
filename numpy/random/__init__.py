@@ -169,6 +169,7 @@ from .mtrand import *
 from .generator import Generator
 from .bit_generator import SeedSequence
 from .mt19937 import MT19937
+from .gjrand import GJrand
 from .jsf64 import JSF64
 from .pcg32 import PCG32
 from .pcg64 import PCG64
