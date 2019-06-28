@@ -182,7 +182,7 @@ from .mtrand import *
 from .generator import Generator, default_gen
 from .bit_generator import SeedSequence
 from .mt19937 import MT19937
-from .pcg64 import PCG64
+from .pcg64 import PCG64, PCG64DXSM
 from .philox import Philox
 from .sfc64 import SFC64
 from .mtrand import RandomState

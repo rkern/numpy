@@ -32,7 +32,9 @@
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the "Software"),
  * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
  *
  * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
@@ -72,9 +74,6 @@ typedef struct {
   uint64_t low;
 } pcg128_t;
 
-#define PCG_DEFAULT_MULTIPLIER_HIGH 2549297995355413924ULL
-#define PCG_DEFAULT_MULTIPLIER_LOW 4865540595714422341ULL
-
 static inline pcg128_t PCG_128BIT_CONSTANT(uint64_t high, uint64_t low) {
   pcg128_t result;
   result.high = high;
@@ -91,6 +90,9 @@ typedef struct {
   pcg128_t state;
   pcg128_t inc;
 } pcg_state_setseq_128;
+
+#define PCG_DEFAULT_MULTIPLIER_HIGH 2549297995355413924ULL
+#define PCG_DEFAULT_MULTIPLIER_LOW 4865540595714422341ULL
 
 #define PCG_DEFAULT_MULTIPLIER_128                                             \
   PCG_128BIT_CONSTANT(PCG_DEFAULT_MULTIPLIER_HIGH, PCG_DEFAULT_MULTIPLIER_LOW)
@@ -233,6 +235,20 @@ static inline void pcg_cm_srandom_r(pcg_state_setseq_128 *rng, pcg128_t initstat
   pcg_cm_step_r(rng);
 }
 
+static inline uint64_t pcg_cm_random_r(pcg_state_setseq_128* rng)
+{
+    uint64_t ret = pcg_output_cm_128_64(rng->state);
+    pcg_cm_step_r(rng);
+    return ret;
+}
+
+static inline uint64_t
+pcg_setseq_128_xsl_rr_64_random_r(pcg_state_setseq_128* rng)
+{
+    pcg_setseq_128_step_r(rng);
+    return pcg_output_xsl_rr_128_64(rng->state);
+}
+
 static inline void pcg_setseq_128_srandom_r(pcg_state_setseq_128 *rng,
                                             pcg128_t initstate,
                                             pcg128_t initseq) {
@@ -299,16 +315,16 @@ static inline uint32_t pcg64_next32(pcg64_state *state) {
 }
 
 static inline uint64_t pcg64_cm_next64(pcg64_state *state) {
-  return pcg_cm_step_r(state->pcg_state);
+  return pcg_cm_random_r(state->pcg_state);
 }
 
-static inline uint32_t pcg64_next32(pcg64_state *state) {
+static inline uint32_t pcg64_cm_next32(pcg64_state *state) {
   uint64_t next;
   if (state->has_uint32) {
     state->has_uint32 = 0;
     return state->uinteger;
   }
-  next = pcg64_random_r(state->pcg_state);
+  next = pcg_cm_random_r(state->pcg_state);
   state->has_uint32 = 1;
   state->uinteger = (uint32_t)(next >> 32);
   return (uint32_t)(next & 0xffffffff);
