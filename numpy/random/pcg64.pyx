@@ -25,6 +25,10 @@ cdef extern from "src/pcg64/pcg64.h":
     void pcg64_get_state(pcg64_state *state, uint64_t *state_arr, int *has_uint32, uint32_t *uinteger)
     void pcg64_set_state(pcg64_state *state, uint64_t *state_arr, int has_uint32, uint32_t uinteger)
 
+    uint64_t pcg64_cm_next64(pcg64_state *state)  nogil
+    uint32_t pcg64_cm_next32(pcg64_state *state)  nogil
+    void pcg64_cm_advance(pcg64_state *state, uint64_t *step)
+
 cdef uint64_t pcg64_uint64(void* st) nogil:
     return pcg64_next64(<pcg64_state *>st)
 
@@ -34,6 +38,14 @@ cdef uint32_t pcg64_uint32(void *st) nogil:
 cdef double pcg64_double(void* st) nogil:
     return uint64_to_double(pcg64_next64(<pcg64_state *>st))
 
+cdef uint64_t pcg64_cm_uint64(void* st) nogil:
+    return pcg64_cm_next64(<pcg64_state *>st)
+
+cdef uint32_t pcg64_cm_uint32(void *st) nogil:
+    return pcg64_cm_next32(<pcg64_state *> st)
+
+cdef double pcg64_cm_double(void* st) nogil:
+    return uint64_to_double(pcg64_cm_next64(<pcg64_state *>st))
 
 cdef class PCG64(BitGenerator):
     """
@@ -268,3 +280,122 @@ cdef class PCG64(BitGenerator):
         pcg64_advance(&self.rng_state, <uint64_t *>np.PyArray_DATA(d))
         self._reset_state_variables()
         return self
+
+
+cdef class PCG64DXSM(BitGenerator):
+    cdef pcg64_state rng_state
+    cdef pcg64_random_t pcg64_random_state
+
+    def __init__(self, seed=None):
+        BitGenerator.__init__(self, seed)
+        self.rng_state.pcg_state = &self.pcg64_random_state
+
+        self._bitgen.state = <void *>&self.rng_state
+        self._bitgen.next_uint64 = &pcg64_cm_uint64
+        self._bitgen.next_uint32 = &pcg64_cm_uint32
+        self._bitgen.next_double = &pcg64_cm_double
+        self._bitgen.next_raw = &pcg64_cm_uint64
+        # Seed the _bitgen
+        val = self._seed_seq.generate_state(4, np.uint64)
+        pcg64_set_seed(&self.rng_state,
+                       <uint64_t *>np.PyArray_DATA(val),
+                       (<uint64_t *>np.PyArray_DATA(val) + 2))
+        self._reset_state_variables()
+
+    cdef _reset_state_variables(self):
+        self.rng_state.has_uint32 = 0
+        self.rng_state.uinteger = 0
+
+    @property
+    def state(self):
+        """
+        Get or set the PRNG state
+        Returns
+        -------
+        state : dict
+            Dictionary containing the information required to describe the
+            state of the PRNG
+        """
+        cdef np.ndarray state_vec
+        cdef int has_uint32
+        cdef uint32_t uinteger
+
+        # state_vec is state.high, state.low, inc.high, inc.low
+        state_vec = <np.ndarray>np.empty(4, dtype=np.uint64)
+        pcg64_get_state(&self.rng_state,
+                        <uint64_t *>np.PyArray_DATA(state_vec),
+                        &has_uint32, &uinteger)
+        state = int(state_vec[0]) * 2**64 + int(state_vec[1])
+        inc = int(state_vec[2]) * 2**64 + int(state_vec[3])
+        return {'bit_generator': self.__class__.__name__,
+                'state': {'state': state, 'inc': inc},
+                'has_uint32': has_uint32,
+                'uinteger': uinteger}
+
+    @state.setter
+    def state(self, value):
+        cdef np.ndarray state_vec
+        cdef int has_uint32
+        cdef uint32_t uinteger
+        if not isinstance(value, dict):
+            raise TypeError('state must be a dict')
+        bitgen = value.get('bit_generator', '')
+        if bitgen != self.__class__.__name__:
+            raise ValueError('state must be for a {0} '
+                             'RNG'.format(self.__class__.__name__))
+        state_vec = <np.ndarray>np.empty(4, dtype=np.uint64)
+        state_vec[0] = value['state']['state'] // 2 ** 64
+        state_vec[1] = value['state']['state'] % 2 ** 64
+        state_vec[2] = value['state']['inc'] // 2 ** 64
+        state_vec[3] = value['state']['inc'] % 2 ** 64
+        has_uint32 = value['has_uint32']
+        uinteger = value['uinteger']
+        pcg64_set_state(&self.rng_state,
+                        <uint64_t *>np.PyArray_DATA(state_vec),
+                        has_uint32, uinteger)
+
+    def advance(self, delta):
+        """
+        advance(delta)
+
+        Advance the underlying RNG as-if delta draws have occurred.
+
+        Parameters
+        ----------
+        delta : integer, positive
+            Number of draws to advance the RNG. Must be less than the
+            size state variable in the underlying RNG.
+
+        Returns
+        -------
+        self : PCG64
+            RNG advanced delta steps
+
+        Notes
+        -----
+        Advancing a RNG updates the underlying RNG state as-if a given
+        number of calls to the underlying RNG have been made. In general
+        there is not a one-to-one relationship between the number output
+        random values from a particular distribution and the number of
+        draws from the core RNG.  This occurs for two reasons:
+
+        * The random values are simulated using a rejection-based method
+          and so, on average, more than one value from the underlying
+          RNG is required to generate an single draw.
+        * The number of bits required to generate a simulated value
+          differs from the number of bits generated by the underlying
+          RNG.  For example, two 16-bit integer values can be simulated
+          from a single draw of a 32-bit RNG.
+
+        Advancing the RNG state resets any pre-computed random numbers.
+        This is required to ensure exact reproducibility.
+        """
+        delta = wrap_int(delta, 128)
+
+        cdef np.ndarray d = np.empty(2, dtype=np.uint64)
+        d[0] = delta // 2**64
+        d[1] = delta % 2**64
+        pcg64_cm_advance(&self.rng_state, <uint64_t *>np.PyArray_DATA(d))
+        self._reset_state_variables()
+        return self
+
